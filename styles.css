@@ -811,13 +811,13 @@ textarea:focus {
 }
 
 .danger-button {
-  border-color: #5b2a2f;
-  color: var(--danger-text);
-  background: var(--danger-bg);
+  border-color: #5a382e;
+  color: var(--negative-text);
+  background: var(--negative-bg);
 }
 
 .danger-button:hover {
-  background: #50282d;
+  background: #493026;
 }
 
 .empty-state {

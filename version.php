@@ -1,3 +1,3 @@
 <?php
 
-define('INVENTORY_VERSION', '0.4.2');
+define('INVENTORY_VERSION', '0.4.3');
