@@ -2,7 +2,7 @@
 require_once __DIR__ . '/lib.php';
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/version.php';
-$assetVersion = INVENTORY_VERSION . '-2026-05-23-20';
+$assetVersion = INVENTORY_VERSION . '-2026-05-23-21';
 inventory_require_auth_page($assetVersion);
 ?>
 <!doctype html>
@@ -360,8 +360,8 @@ inventory_require_auth_page($assetVersion);
 
   <template id="item-template">
     <article class="item-card">
+      <img class="item-photo hidden" alt="" loading="lazy" />
       <div class="item-main">
-        <img class="item-photo hidden" alt="" loading="lazy" />
         <div class="item-copy">
           <p class="item-code hidden"></p>
           <h3 class="item-name"></h3>
