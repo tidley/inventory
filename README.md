@@ -1,21 +1,21 @@
 # Personal Inventory
 
-Small PHP-hosted, PWA-capable personal inventory tracker with MySQL storage.
+Small PHP-hosted, PWA-capable personal inventory tracker with MySQL storage, photo uploads, offline queued saves, and optional Web NFC bin tags on supported mobile browsers.
 
 ## Files
 
 - `index.php` serves the mobile-first UI.
-- `api.php` stores and searches inventory rows in MySQL.
+- `api.php` stores and searches items, bins, and categories in MySQL.
 - `photo.php` serves item photos stored in MySQL.
 - `auth.php` and `auth.js` provide username/PIN login and optional device-unlock passkey sign-in.
 - `updater.php` installs GitHub release ZIPs when `UPDATE_TOKEN` is configured.
 - `manifest.json`, `sw.js`, and `icons/` make the app installable on a phone.
-- `styles.css` and `app.js` are static assets.
+- `styles.css` and `app.js` are static assets, including offline queueing and Web NFC browser integration.
 - `.env` contains the database credentials and is ignored by git.
 
 ## Deploy
 
-Copy the files to PHP hosting with the PHP PDO MySQL extension enabled. The app creates or updates its `inventory_items` table on first API use, including the columns used for database-backed item photos.
+Copy the files to PHP hosting with the PHP PDO MySQL extension enabled. The app creates or updates its `inventory_items`, `inventory_bins`, and `inventory_categories` tables on first API use, including the columns used for database-backed item photos.
 
 For cPanel Git Version Control, `.cpanel.yml` deploys to `$HOME/public_html/inventory/`. If the subdomain document root is different, update `DEPLOYPATH` in `.cpanel.yml` before deploying.
 
@@ -34,7 +34,9 @@ Use `AUTH_PIN_HASH` in production. `AUTH_PIN` is supported as a simpler fallback
 
 cPanel may add an account prefix to database and user names. If it does, update `.env` to match the exact names shown in cPanel's MySQL Databases page.
 
-The app creates/updates its own table on first use, so the database user needs `CREATE` and `ALTER` for initial setup. After the table exists, normal use only needs `SELECT`, `INSERT`, `UPDATE`, and `DELETE`.
+The app creates/updates its own tables on first use, so the database user needs `CREATE` and `ALTER` for initial setup. After the tables exist, normal use only needs `SELECT`, `INSERT`, `UPDATE`, and `DELETE`.
+
+Web NFC scanning/writing uses the browser `NDEFReader` API. It requires HTTPS and a browser/device that supports Web NFC, currently mainly Android Chromium/Chrome-style browsers. Unsupported browsers will still run the app, but NFC controls will report that NFC is unavailable.
 
 For a local check:
 
