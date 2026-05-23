@@ -15,6 +15,8 @@ Small PHP-hosted, PWA-capable personal inventory tracker with MySQL storage.
 
 Copy the files to PHP hosting with the PHP PDO MySQL extension enabled. The app creates or updates its `inventory_items` table on first API use, including the columns used for database-backed item photos.
 
+For cPanel Git Version Control, `.cpanel.yml` deploys to `$HOME/public_html/inventory/`. If the subdomain document root is different, update `DEPLOYPATH` in `.cpanel.yml` before deploying.
+
 Create `.env` from `.env.example` and set:
 
 - Database: `example_inventory`

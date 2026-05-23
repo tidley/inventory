@@ -1,14 +1,13 @@
 <?php
-declare(strict_types=1);
 
 require __DIR__ . '/lib.php';
 
 header('X-Content-Type-Options: nosniff');
 header('Referrer-Policy: same-origin');
 
-$id = (int) filter_var($_GET['id'] ?? 0, FILTER_VALIDATE_INT, [
-  'options' => ['default' => 0, 'min_range' => 1],
-]);
+$id = (int) filter_var(isset($_GET['id']) ? $_GET['id'] : 0, FILTER_VALIDATE_INT, array(
+  'options' => array('default' => 0, 'min_range' => 1),
+));
 
 if ($id < 1) {
   http_response_code(404);
@@ -18,7 +17,7 @@ if ($id < 1) {
 inventory_ensure_schema();
 
 $stmt = inventory_db()->prepare('SELECT photo_mime, photo_data, photo_updated_at FROM inventory_items WHERE id = :id');
-$stmt->execute([':id' => $id]);
+$stmt->execute(array(':id' => $id));
 $row = $stmt->fetch();
 
 if (!$row || !$row['photo_data'] || !$row['photo_mime']) {
@@ -26,7 +25,10 @@ if (!$row || !$row['photo_data'] || !$row['photo_mime']) {
   exit;
 }
 
-$updated = strtotime((string) ($row['photo_updated_at'] ?? '')) ?: time();
+$updated = strtotime((string) (isset($row['photo_updated_at']) ? $row['photo_updated_at'] : ''));
+if ($updated === false) {
+  $updated = time();
+}
 $etag = '"' . sha1($id . ':' . $updated) . '"';
 
 header('Content-Type: ' . $row['photo_mime']);

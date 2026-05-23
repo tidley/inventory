@@ -1,0 +1,18 @@
+---
+deployment:
+  tasks:
+    - export DEPLOYPATH=$HOME/public_html/inventory/
+    - /bin/mkdir -p $DEPLOYPATH
+    - /bin/cp .htaccess $DEPLOYPATH
+    - /bin/cp index.php $DEPLOYPATH
+    - /bin/cp api.php $DEPLOYPATH
+    - /bin/cp lib.php $DEPLOYPATH
+    - /bin/cp photo.php $DEPLOYPATH
+    - /bin/cp test-db.php $DEPLOYPATH
+    - /bin/cp styles.css $DEPLOYPATH
+    - /bin/cp app.js $DEPLOYPATH
+    - /bin/cp manifest.json $DEPLOYPATH
+    - /bin/cp sw.js $DEPLOYPATH
+    - /bin/cp favicon.ico $DEPLOYPATH
+    - /bin/rm -rf $DEPLOYPATH/icons
+    - /bin/cp -R icons $DEPLOYPATH
