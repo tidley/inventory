@@ -806,11 +806,11 @@ try {
     }
 
     $stmt = inventory_db()->prepare(
-      'UPDATE inventory_items SET quantity = GREATEST(1, quantity + :delta) WHERE id = :id'
+      'UPDATE inventory_items SET quantity = GREATEST(1, quantity + :delta), updated_at = updated_at WHERE id = :id'
     );
     bind_and_execute($stmt, array(':delta' => $delta, ':id' => $id));
     if ($stmt->rowCount() === 0) {
-      json_response(array('error' => 'Item not found'), 404);
+      get_item($id);
     }
 
     send_inventory();
