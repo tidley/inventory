@@ -1,5 +1,5 @@
 <?php
-$assetVersion = '2026-05-23-2';
+$assetVersion = '2026-05-23-3';
 ?>
 <!doctype html>
 <html lang="en">
@@ -73,7 +73,7 @@ $assetVersion = '2026-05-23-2';
 
         <label class="field field-full photo-field" for="photo">
           <span>Photo</span>
-          <input id="photo" name="photo" type="file" accept="image/*" />
+          <input id="photo" name="photo" type="file" accept="image/*" capture="environment" />
           <div class="photo-preview hidden" id="photo-preview">
             <img id="photo-preview-image" alt="" />
             <button class="small-button danger-button" id="remove-photo" type="button">Remove photo</button>

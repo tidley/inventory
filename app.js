@@ -69,9 +69,17 @@ async function request(path, options = {}) {
     ...options,
     headers,
   });
-  const data = await response.json().catch(() => ({}));
+  const raw = await response.text();
+  let data = {};
+  if (raw) {
+    try {
+      data = JSON.parse(raw);
+    } catch (error) {
+      data = {};
+    }
+  }
   if (!response.ok) {
-    throw new Error(data.error || 'Request failed');
+    throw new Error(data.error || `Server returned ${response.status}`);
   }
   return data;
 }
