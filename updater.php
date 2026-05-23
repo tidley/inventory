@@ -4,7 +4,7 @@ require_once __DIR__ . '/version.php';
 require_once __DIR__ . '/lib.php';
 
 if (!defined('INVENTORY_UPDATE_REPO')) {
-  define('INVENTORY_UPDATE_REPO', 'github-owner/inventory');
+  define('INVENTORY_UPDATE_REPO', '');
 }
 
 class InventoryUpdater {
@@ -152,7 +152,7 @@ class InventoryUpdater {
   }
 
   private static function getLatestRelease() {
-    $url = sprintf(self::RELEASE_API, INVENTORY_UPDATE_REPO);
+    $url = sprintf(self::RELEASE_API, self::updateRepo());
     $response = self::httpGet($url, self::githubHeaders(array(
       'Accept: application/vnd.github+json',
       'User-Agent: Inventory/' . INVENTORY_VERSION,
@@ -186,10 +186,39 @@ class InventoryUpdater {
   }
 
   private static function validateAssetUrl($url, $tag) {
-    $expectedPrefix = 'https://github.com/' . INVENTORY_UPDATE_REPO . '/releases/download/' . rawurlencode($tag) . '/';
+    $expectedPrefix = 'https://github.com/' . self::updateRepo() . '/releases/download/' . rawurlencode($tag) . '/';
     if ($url === '' || strncmp($url, $expectedPrefix, strlen($expectedPrefix)) !== 0) {
       throw new Exception('Unexpected release asset URL.');
     }
+  }
+
+  private static function updateRepo() {
+    $repo = getenv('INVENTORY_UPDATE_REPO');
+    if ($repo !== false && trim($repo) !== '') {
+      return self::validateRepo(trim($repo));
+    }
+
+    try {
+      $env = inventory_env();
+      if (isset($env['INVENTORY_UPDATE_REPO']) && trim($env['INVENTORY_UPDATE_REPO']) !== '') {
+        return self::validateRepo(trim($env['INVENTORY_UPDATE_REPO']));
+      }
+    } catch (Exception $error) {
+      // Fall through to the constant/default check below.
+    }
+
+    if (INVENTORY_UPDATE_REPO !== '') {
+      return self::validateRepo(INVENTORY_UPDATE_REPO);
+    }
+
+    throw new Exception('Set INVENTORY_UPDATE_REPO in .env to enable updates.');
+  }
+
+  private static function validateRepo($repo) {
+    if (!preg_match('/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/', $repo)) {
+      throw new Exception('INVENTORY_UPDATE_REPO must be in owner/repository format.');
+    }
+    return $repo;
   }
 
   private static function httpGet($url, $headers = array()) {

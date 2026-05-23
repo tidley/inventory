@@ -21,10 +21,11 @@ For cPanel Git Version Control, `.cpanel.yml` deploys to `$HOME/public_html/inve
 
 Create `.env` from `.env.example` and set:
 
-- Database: `example_inventory`
-- User: `example_inventory_user`
+- Database: your MySQL database name, for example `example_inventory`
+- User: your MySQL database username, for example `example_inventory_user`
 - Host: `localhost`
 - Update token: a long random value used by the in-app updater.
+- Update repository: the GitHub `owner/repository` used for release updates.
 - GitHub token: optional, only needed if the release repository is private.
 - Auth username: for example `inventory-admin`
 - Auth PIN hash: create with `php -r 'echo password_hash("your-pin", PASSWORD_DEFAULT), PHP_EOL;'`
@@ -43,4 +44,4 @@ php -S 127.0.0.1:8080
 
 ## Releases
 
-Create a tag like `v0.2.1` after updating `INVENTORY_VERSION` in `version.php`. GitHub Actions builds `build/inventory.zip` and attaches it to the release. The in-app update panel checks that release and installs the ZIP when the configured `UPDATE_TOKEN` is supplied. For a private GitHub repository, set `INVENTORY_GITHUB_TOKEN` in `.env` to a token that can read repository contents/releases.
+Create a tag like `v0.2.2` after updating `INVENTORY_VERSION` in `version.php`. GitHub Actions builds `build/inventory.zip` and attaches it to the release. The in-app update panel checks the repository configured by `INVENTORY_UPDATE_REPO` and installs the ZIP when the configured `UPDATE_TOKEN` is supplied. For a private GitHub repository, set `INVENTORY_GITHUB_TOKEN` in `.env` to a token that can read repository contents/releases.

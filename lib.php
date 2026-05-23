@@ -36,7 +36,7 @@ function inventory_env() {
     $env[$key] = $value;
   }
 
-  foreach (array('DB_HOST', 'DB_DATABASE', 'DB_USERNAME', 'DB_PASSWORD', 'DB_CHARSET', 'UPDATE_TOKEN', 'AUTH_USERNAME', 'AUTH_PIN_HASH', 'AUTH_PIN') as $key) {
+  foreach (array('DB_HOST', 'DB_DATABASE', 'DB_USERNAME', 'DB_PASSWORD', 'DB_CHARSET', 'UPDATE_TOKEN', 'INVENTORY_UPDATE_REPO', 'INVENTORY_GITHUB_TOKEN', 'GITHUB_TOKEN', 'AUTH_USERNAME', 'AUTH_PIN_HASH', 'AUTH_PIN') as $key) {
     $value = getenv($key);
     if ($value !== false && $value !== '') {
       $env[$key] = $value;
