@@ -115,6 +115,7 @@ h3 {
 .bin-panel,
 .category-panel,
 .update-panel,
+.security-panel,
 .search-panel {
   background: var(--surface);
   border: 1px solid var(--line);
@@ -332,7 +333,8 @@ textarea:focus {
   margin-bottom: 12px;
 }
 
-.update-grid div {
+.update-grid div,
+.security-grid div {
   display: grid;
   gap: 4px;
   padding: 10px;
@@ -341,14 +343,49 @@ textarea:focus {
   background: #151b20;
 }
 
-.update-grid span {
+.update-grid span,
+.security-grid span {
   color: var(--muted);
   font-size: 0.78rem;
   font-weight: 800;
 }
 
+.security-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
 .update-actions {
   margin-top: 12px;
+}
+
+.auth-shell {
+  width: min(440px, 100%);
+  min-height: 100vh;
+  display: grid;
+  align-items: center;
+  margin: 0 auto;
+  padding: max(18px, env(safe-area-inset-top)) 14px max(34px, env(safe-area-inset-bottom));
+}
+
+.auth-panel {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.auth-form {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+.auth-message {
+  line-height: 1.45;
 }
 
 .modal {
@@ -593,6 +630,7 @@ textarea:focus {
   .bin-panel,
   .category-panel,
   .update-panel,
+  .security-panel,
   .search-panel {
     padding: 18px;
   }
@@ -620,6 +658,7 @@ textarea:focus {
   .compact-form,
   .move-panel,
   .update-grid,
+  .security-grid,
   .detail-grid,
   .bin-row {
     grid-template-columns: 1fr;

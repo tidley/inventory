@@ -1,6 +1,7 @@
 <?php
 
 require __DIR__ . '/lib.php';
+require __DIR__ . '/auth.php';
 require __DIR__ . '/updater.php';
 
 header('Content-Type: application/json; charset=utf-8');
@@ -378,9 +379,46 @@ try {
 
   if ($method === 'POST') {
     $input = read_json_input();
-    $action = clean_text(array_value($input, 'action', ''), 20);
+    $action = clean_text(array_value($input, 'action', ''), 40);
+
+    if ($action === 'authStatus') {
+      json_response(inventory_auth_status_payload());
+    }
+
+    if ($action === 'authLogin') {
+      inventory_auth_login($input);
+    }
+
+    if ($action === 'authLogout') {
+      inventory_auth_logout();
+    }
+
+    if ($action === 'passkeyLoginOptions') {
+      inventory_passkey_login_options($input);
+    }
+
+    if ($action === 'passkeyLogin') {
+      try {
+        inventory_passkey_login($input);
+      } catch (Exception $error) {
+        json_response(array('error' => $error->getMessage()), 401);
+      }
+    }
+
+    if ($action === 'passkeyRegisterOptions') {
+      inventory_passkey_register_options();
+    }
+
+    if ($action === 'passkeyRegister') {
+      try {
+        inventory_passkey_register($input);
+      } catch (Exception $error) {
+        json_response(array('error' => $error->getMessage()), 400);
+      }
+    }
 
     if ($action === 'updateStatus') {
+      inventory_require_auth_json();
       try {
         json_response(update_status_payload());
       } catch (Exception $error) {
@@ -389,10 +427,12 @@ try {
     }
 
     if ($action === 'updateInstallStatus') {
+      inventory_require_auth_json();
       json_response(InventoryUpdater::getInstallStatus());
     }
 
     if ($action === 'installUpdate') {
+      inventory_require_auth_json();
       require_update_token($input);
       try {
         json_response(InventoryUpdater::installLatest());
@@ -402,6 +442,7 @@ try {
     }
   }
 
+  inventory_require_auth_json();
   inventory_ensure_schema();
 
   if ($method === 'GET') {

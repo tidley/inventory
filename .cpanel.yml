@@ -7,12 +7,14 @@ deployment:
     - /bin/cp index.php $DEPLOYPATH
     - /bin/cp api.php $DEPLOYPATH
     - /bin/cp lib.php $DEPLOYPATH
+    - /bin/cp auth.php $DEPLOYPATH
     - /bin/cp version.php $DEPLOYPATH
     - /bin/cp updater.php $DEPLOYPATH
     - /bin/cp photo.php $DEPLOYPATH
     - /bin/cp test-db.php $DEPLOYPATH
     - /bin/cp styles.css $DEPLOYPATH
     - /bin/cp app.js $DEPLOYPATH
+    - /bin/cp auth.js $DEPLOYPATH
     - /bin/cp manifest.json $DEPLOYPATH
     - /bin/cp sw.js $DEPLOYPATH
     - /bin/cp favicon.ico $DEPLOYPATH

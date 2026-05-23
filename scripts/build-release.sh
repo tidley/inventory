@@ -11,8 +11,8 @@ mkdir -p "$BUILD_DIR"
 
 cp .htaccess "$BUILD_DIR/"
 cp .env.example "$BUILD_DIR/"
-cp index.php api.php lib.php version.php updater.php photo.php test-db.php "$BUILD_DIR/"
-cp styles.css app.js manifest.json sw.js favicon.ico "$BUILD_DIR/"
+cp index.php api.php lib.php auth.php version.php updater.php photo.php test-db.php "$BUILD_DIR/"
+cp styles.css app.js auth.js manifest.json sw.js favicon.ico "$BUILD_DIR/"
 cp -R icons "$BUILD_DIR/"
 
 cd build

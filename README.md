@@ -7,6 +7,7 @@ Small PHP-hosted, PWA-capable personal inventory tracker with MySQL storage.
 - `index.php` serves the mobile-first UI.
 - `api.php` stores and searches inventory rows in MySQL.
 - `photo.php` serves item photos stored in MySQL.
+- `auth.php` and `auth.js` provide username/PIN login and optional passkey biometric sign-in.
 - `updater.php` installs GitHub release ZIPs when `UPDATE_TOKEN` is configured.
 - `manifest.json`, `sw.js`, and `icons/` make the app installable on a phone.
 - `styles.css` and `app.js` are static assets.
@@ -24,6 +25,10 @@ Create `.env` from `.env.example` and set:
 - User: `example_inventory_user`
 - Host: `localhost`
 - Update token: a long random value used by the in-app updater.
+- Auth username: for example `inventory-admin`
+- Auth PIN hash: create with `php -r 'echo password_hash("your-pin", PASSWORD_DEFAULT), PHP_EOL;'`
+
+Use `AUTH_PIN_HASH` in production. `AUTH_PIN` is supported as a simpler fallback, but it stores the PIN in plain text in `.env`.
 
 cPanel may add an account prefix to database and user names. If it does, update `.env` to match the exact names shown in cPanel's MySQL Databases page.
 
@@ -37,4 +42,4 @@ php -S 127.0.0.1:8080
 
 ## Releases
 
-Create a tag like `v0.1.1` after updating `INVENTORY_VERSION` in `version.php`. GitHub Actions builds `build/inventory.zip` and attaches it to the release. The in-app update panel checks that release and installs the ZIP when the configured `UPDATE_TOKEN` is supplied.
+Create a tag like `v0.2.0` after updating `INVENTORY_VERSION` in `version.php`. GitHub Actions builds `build/inventory.zip` and attaches it to the release. The in-app update panel checks that release and installs the ZIP when the configured `UPDATE_TOKEN` is supplied.

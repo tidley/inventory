@@ -1,12 +1,14 @@
 <?php
 
 require __DIR__ . '/lib.php';
+require __DIR__ . '/auth.php';
 
 header('Content-Type: application/json; charset=utf-8');
 header('X-Content-Type-Options: nosniff');
 header('Referrer-Policy: same-origin');
 
 try {
+  inventory_require_auth_json();
   $pdo = inventory_db();
   $schemaOk = false;
   $schemaError = null;

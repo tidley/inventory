@@ -36,6 +36,13 @@ function inventory_env() {
     $env[$key] = $value;
   }
 
+  foreach (array('DB_HOST', 'DB_DATABASE', 'DB_USERNAME', 'DB_PASSWORD', 'DB_CHARSET', 'UPDATE_TOKEN', 'AUTH_USERNAME', 'AUTH_PIN_HASH', 'AUTH_PIN') as $key) {
+    $value = getenv($key);
+    if ($value !== false && $value !== '') {
+      $env[$key] = $value;
+    }
+  }
+
   foreach (array('DB_DATABASE', 'DB_USERNAME', 'DB_PASSWORD') as $required) {
     if (!isset($env[$required]) || $env[$required] === '') {
       json_response(array('error' => 'Missing ' . $required . ' in .env'), 500);

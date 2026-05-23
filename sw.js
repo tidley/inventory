@@ -1,11 +1,10 @@
-const CACHE_VERSION = "v6";
+const CACHE_VERSION = "v7";
 const STATIC_CACHE = `inventory-static-${CACHE_VERSION}`;
 
 const STATIC_ASSETS = [
-  "./",
-  "index.php",
   "styles.css",
   "app.js",
+  "auth.js",
   "manifest.json",
   "icons/icon-180.png",
   "icons/icon-192.png",
@@ -46,8 +45,8 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  if (url.pathname.endsWith(".php")) {
-    event.respondWith(networkFirst(request));
+  if (url.pathname === "/" || url.pathname.endsWith(".php")) {
+    event.respondWith(fetch(request));
     return;
   }
 

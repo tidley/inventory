@@ -149,6 +149,9 @@ async function request(path, options = {}) {
     }
   }
   if (!response.ok) {
+    if (response.status === 401 && data.loginRequired) {
+      window.location.reload();
+    }
     const error = new Error(data.error || `Server returned ${response.status}`);
     error.data = data;
     throw error;

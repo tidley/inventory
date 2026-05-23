@@ -1,9 +1,19 @@
 <?php
 
 require __DIR__ . '/lib.php';
+require __DIR__ . '/auth.php';
 
 header('X-Content-Type-Options: nosniff');
 header('Referrer-Policy: same-origin');
+
+if (!inventory_auth_configured()) {
+  http_response_code(503);
+  exit;
+}
+if (!inventory_is_authenticated()) {
+  http_response_code(401);
+  exit;
+}
 
 $id = (int) filter_var(isset($_GET['id']) ? $_GET['id'] : 0, FILTER_VALIDATE_INT, array(
   'options' => array('default' => 0, 'min_range' => 1),

@@ -1,6 +1,9 @@
 <?php
+require_once __DIR__ . '/lib.php';
+require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/version.php';
-$assetVersion = INVENTORY_VERSION . '-2026-05-23-7';
+$assetVersion = INVENTORY_VERSION . '-2026-05-23-8';
+inventory_require_auth_page($assetVersion);
 ?>
 <!doctype html>
 <html lang="en">
@@ -198,6 +201,29 @@ $assetVersion = INVENTORY_VERSION . '-2026-05-23-7';
       </div>
     </section>
 
+    <section class="security-panel" aria-labelledby="security-title">
+      <div class="section-head">
+        <h2 id="security-title">Access</h2>
+        <button class="text-button" id="logout-button" type="button">Logout</button>
+      </div>
+
+      <div class="security-grid">
+        <div>
+          <span>User</span>
+          <strong id="auth-current-user"><?php echo htmlspecialchars(inventory_current_username(), ENT_QUOTES, 'UTF-8'); ?></strong>
+        </div>
+        <div>
+          <span>Passkeys</span>
+          <strong id="passkey-count">0</strong>
+        </div>
+      </div>
+
+      <div class="form-actions update-actions">
+        <button class="primary-button" id="enable-passkey-button" type="button">Enable fingerprint</button>
+        <p class="status" id="security-status" role="status" aria-live="polite"></p>
+      </div>
+    </section>
+
     <section class="search-panel" aria-labelledby="search-title">
       <div class="section-head search-head">
         <h2 id="search-title">Pick list</h2>
@@ -350,5 +376,6 @@ $assetVersion = INVENTORY_VERSION . '-2026-05-23-7';
   <datalist id="location-details"></datalist>
 
   <script src="app.js?v=<?php echo htmlspecialchars($assetVersion, ENT_QUOTES, 'UTF-8'); ?>" defer></script>
+  <script src="auth.js?v=<?php echo htmlspecialchars($assetVersion, ENT_QUOTES, 'UTF-8'); ?>" defer></script>
 </body>
 </html>
