@@ -9,6 +9,7 @@ const state = {
   meta: {},
   query: '',
   editingId: '',
+  detailItemId: '',
   lastLocationCode: '',
   binEditingCode: '',
   pendingDeleteBin: null,
@@ -87,6 +88,20 @@ const ui = {
   checkUpdateButton: document.getElementById('check-update-button'),
   installUpdateButton: document.getElementById('install-update-button'),
   updateStatus: document.getElementById('update-status'),
+  itemDetailDialog: document.getElementById('item-detail-dialog'),
+  itemDetailTitle: document.getElementById('item-detail-title'),
+  itemDetailCode: document.getElementById('item-detail-code'),
+  itemDetailSubtitle: document.getElementById('item-detail-subtitle'),
+  itemDetailPhoto: document.getElementById('item-detail-photo'),
+  itemDetailBin: document.getElementById('item-detail-bin'),
+  itemDetailLocation: document.getElementById('item-detail-location'),
+  itemDetailQuantity: document.getElementById('item-detail-quantity'),
+  itemDetailCategory: document.getElementById('item-detail-category'),
+  itemDetailCreated: document.getElementById('item-detail-created'),
+  itemDetailUpdated: document.getElementById('item-detail-updated'),
+  itemDetailNotes: document.getElementById('item-detail-notes'),
+  itemDetailClose: document.getElementById('item-detail-close'),
+  itemDetailEdit: document.getElementById('item-detail-edit'),
   itemTemplate: document.getElementById('item-template'),
   locationDetails: document.getElementById('location-details'),
 };
@@ -99,6 +114,11 @@ const formatUpdated = new Intl.DateTimeFormat('en-GB', {
   month: 'short',
   hour: '2-digit',
   minute: '2-digit',
+});
+
+const formatDetailDate = new Intl.DateTimeFormat('en-GB', {
+  dateStyle: 'medium',
+  timeStyle: 'short',
 });
 
 function setStatus(message, isError = false) {
@@ -219,6 +239,26 @@ function categoryDisplay(category) {
   return category.label ? `${category.code} · ${category.label}` : category.code;
 }
 
+function itemLocationDisplay(item) {
+  const bin = binForCode(item.locationCode);
+  const locationParts = [item.locationCode];
+  if (bin && bin.label && bin.label !== item.locationCode) locationParts.push(bin.label);
+  if (item.locationDetail) locationParts.push(item.locationDetail);
+  return locationParts.filter(Boolean).join(' · ');
+}
+
+function itemBinDisplay(item) {
+  const bin = binForCode(item.locationCode);
+  if (bin) return binDisplay(bin);
+  return item.locationCode || 'None';
+}
+
+function itemCategoryDisplay(item) {
+  const category = categoryForCode(item.category);
+  if (item.category && category) return categoryDisplay(category);
+  return item.category || 'None';
+}
+
 function renderBinSelect() {
   const current = ui.locationCode.value === addBinOptionValue ? state.lastLocationCode : ui.locationCode.value;
   const options = [new Option('Select bin', '')];
@@ -268,6 +308,12 @@ function displayTime(value) {
   return Number.isNaN(date.valueOf()) ? '' : formatUpdated.format(date);
 }
 
+function displayDetailTime(value) {
+  if (!value) return '';
+  const date = new Date(value);
+  return Number.isNaN(date.valueOf()) ? '' : formatDetailDate.format(date);
+}
+
 function updateStats(items) {
   const stats = state.meta.stats || {};
   ui.itemCount.textContent = String(stats.itemCount ?? state.items.length);
@@ -289,13 +335,11 @@ function renderItems() {
     const code = fragment.querySelector('.item-code');
     const category = fragment.querySelector('.category');
     const notes = fragment.querySelector('.notes');
-    const bin = binForCode(item.locationCode);
-    const locationParts = [item.locationCode];
-    if (bin && bin.label && bin.label !== item.locationCode) locationParts.push(bin.label);
-    if (item.locationDetail) locationParts.push(item.locationDetail);
-    const location = locationParts.filter(Boolean).join(' · ');
+    const location = itemLocationDisplay(item);
 
     card.dataset.id = item.id;
+    card.tabIndex = 0;
+    card.setAttribute('aria-label', `View ${item.name}`);
     fragment.querySelector('.item-name').textContent = item.name;
     fragment.querySelector('.item-location').textContent = location;
     fragment.querySelector('.quantity').textContent = `x${item.quantity || 1}`;
@@ -314,7 +358,7 @@ function renderItems() {
 
     const itemCategory = categoryForCode(item.category);
     if (item.category) {
-      category.textContent = itemCategory ? categoryDisplay(itemCategory) : item.category;
+      category.textContent = itemCategoryDisplay(item);
       category.classList.remove('hidden');
     }
 
@@ -327,6 +371,15 @@ function renderItems() {
     fragment.querySelector('.plus-button').addEventListener('click', () => adjustItem(item.id, 1));
     fragment.querySelector('.edit-button').addEventListener('click', () => editItem(item.id));
     fragment.querySelector('.delete-button').addEventListener('click', () => deleteItem(item.id));
+    card.addEventListener('click', (event) => {
+      if (event.target instanceof Element && event.target.closest('button')) return;
+      openItemDetail(item.id);
+    });
+    card.addEventListener('keydown', (event) => {
+      if (event.target !== card || (event.key !== 'Enter' && event.key !== ' ')) return;
+      event.preventDefault();
+      openItemDetail(item.id);
+    });
     ui.results.appendChild(fragment);
   });
 
@@ -435,6 +488,63 @@ function closeQuickBinDialog() {
   }
   ui.quickBinForm.reset();
   setQuickBinStatus('');
+}
+
+function openItemDetail(id) {
+  const item = state.items.find((candidate) => Number(candidate.id) === Number(id));
+  if (!item) return;
+
+  state.detailItemId = item.id;
+  ui.itemDetailTitle.textContent = item.name;
+  ui.itemDetailSubtitle.textContent = itemLocationDisplay(item) || 'No location';
+  ui.itemDetailBin.textContent = itemBinDisplay(item);
+  ui.itemDetailLocation.textContent = item.locationDetail || 'None';
+  ui.itemDetailQuantity.textContent = String(item.quantity || 1);
+  ui.itemDetailCategory.textContent = itemCategoryDisplay(item);
+  ui.itemDetailCreated.textContent = displayDetailTime(item.createdAt) || 'Unknown';
+  ui.itemDetailUpdated.textContent = displayDetailTime(item.updatedAt) || 'Unknown';
+  ui.itemDetailNotes.textContent = item.notes || 'None';
+
+  if (item.sku) {
+    ui.itemDetailCode.textContent = item.sku;
+    ui.itemDetailCode.classList.remove('hidden');
+  } else {
+    ui.itemDetailCode.textContent = '';
+    ui.itemDetailCode.classList.add('hidden');
+  }
+
+  if (item.hasPhoto && item.photoUrl) {
+    ui.itemDetailPhoto.src = item.photoUrl;
+    ui.itemDetailPhoto.alt = item.name;
+    ui.itemDetailPhoto.classList.remove('hidden');
+  } else {
+    ui.itemDetailPhoto.removeAttribute('src');
+    ui.itemDetailPhoto.alt = '';
+    ui.itemDetailPhoto.classList.add('hidden');
+  }
+
+  if (typeof ui.itemDetailDialog.showModal === 'function') {
+    ui.itemDetailDialog.showModal();
+  } else {
+    ui.itemDetailDialog.setAttribute('open', '');
+  }
+}
+
+function closeItemDetail() {
+  state.detailItemId = '';
+  ui.itemDetailPhoto.removeAttribute('src');
+
+  if (ui.itemDetailDialog.open && typeof ui.itemDetailDialog.close === 'function') {
+    ui.itemDetailDialog.close();
+  } else {
+    ui.itemDetailDialog.removeAttribute('open');
+  }
+}
+
+function editItemFromDetail() {
+  const id = state.detailItemId;
+  closeItemDetail();
+  if (id) editItem(id);
 }
 
 function setCategoryStatus(message, isError = false) {
@@ -1005,6 +1115,15 @@ ui.quickBinForm.addEventListener('submit', saveQuickBin);
 ui.quickBinCancel.addEventListener('click', closeQuickBinDialog);
 ui.quickBinDialog.addEventListener('click', (event) => {
   if (event.target === ui.quickBinDialog) closeQuickBinDialog();
+});
+ui.itemDetailClose.addEventListener('click', closeItemDetail);
+ui.itemDetailEdit.addEventListener('click', editItemFromDetail);
+ui.itemDetailDialog.addEventListener('click', (event) => {
+  if (event.target === ui.itemDetailDialog) closeItemDetail();
+});
+ui.itemDetailDialog.addEventListener('close', () => {
+  state.detailItemId = '';
+  ui.itemDetailPhoto.removeAttribute('src');
 });
 ui.categoryForm.addEventListener('submit', saveCategory);
 ui.cancelCategoryEdit.addEventListener('click', resetCategoryForm);

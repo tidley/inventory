@@ -1,6 +1,6 @@
 <?php
 require_once __DIR__ . '/version.php';
-$assetVersion = INVENTORY_VERSION . '-2026-05-23-6';
+$assetVersion = INVENTORY_VERSION . '-2026-05-23-7';
 ?>
 <!doctype html>
 <html lang="en">
@@ -241,6 +241,57 @@ $assetVersion = INVENTORY_VERSION . '-2026-05-23-6';
         <p class="status" id="quick-bin-status" role="status" aria-live="polite"></p>
       </div>
     </form>
+  </dialog>
+
+  <dialog class="modal detail-modal" id="item-detail-dialog" aria-labelledby="item-detail-title">
+    <article class="modal-card detail-card">
+      <div class="section-head detail-head">
+        <div>
+          <p class="item-code hidden" id="item-detail-code"></p>
+          <h2 id="item-detail-title"></h2>
+          <p class="detail-subtitle" id="item-detail-subtitle"></p>
+        </div>
+        <button class="text-button" id="item-detail-close" type="button">Close</button>
+      </div>
+
+      <img class="detail-photo hidden" id="item-detail-photo" alt="" />
+
+      <dl class="detail-grid">
+        <div>
+          <dt>Bin</dt>
+          <dd id="item-detail-bin"></dd>
+        </div>
+        <div>
+          <dt>Location</dt>
+          <dd id="item-detail-location"></dd>
+        </div>
+        <div>
+          <dt>Stock</dt>
+          <dd id="item-detail-quantity"></dd>
+        </div>
+        <div>
+          <dt>Category</dt>
+          <dd id="item-detail-category"></dd>
+        </div>
+        <div>
+          <dt>Created</dt>
+          <dd id="item-detail-created"></dd>
+        </div>
+        <div>
+          <dt>Updated</dt>
+          <dd id="item-detail-updated"></dd>
+        </div>
+      </dl>
+
+      <div class="detail-notes">
+        <h3>Notes</h3>
+        <p id="item-detail-notes"></p>
+      </div>
+
+      <div class="item-actions">
+        <button class="small-button" id="item-detail-edit" type="button">Edit</button>
+      </div>
+    </article>
   </dialog>
 
   <template id="item-template">
