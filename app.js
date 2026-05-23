@@ -1,5 +1,6 @@
 const apiUrl = 'api.php';
 const addBinOptionValue = '__add_bin__';
+const addCategoryOptionValue = '__add_category__';
 const updateTokenStorageKey = 'inventoryUpdateToken';
 const maxPhotoDimension = 1280;
 const photoQuality = 0.78;
@@ -11,6 +12,7 @@ const state = {
   editingId: '',
   detailItemId: '',
   lastLocationCode: '',
+  lastCategoryCode: '',
   binEditingCode: '',
   pendingDeleteBin: null,
   categoryEditingCode: '',
@@ -58,6 +60,13 @@ const ui = {
   saveQuickBinButton: document.getElementById('save-quick-bin-button'),
   quickBinStatus: document.getElementById('quick-bin-status'),
   quickBinCancel: document.getElementById('quick-bin-cancel'),
+  quickCategoryDialog: document.getElementById('quick-category-dialog'),
+  quickCategoryForm: document.getElementById('quick-category-form'),
+  quickCategoryCode: document.getElementById('quick-category-code'),
+  quickCategoryLabel: document.getElementById('quick-category-label'),
+  saveQuickCategoryButton: document.getElementById('save-quick-category-button'),
+  quickCategoryStatus: document.getElementById('quick-category-status'),
+  quickCategoryCancel: document.getElementById('quick-category-cancel'),
   categoryForm: document.getElementById('category-form'),
   categoryOriginalCode: document.getElementById('category-original-code'),
   categoryCode: document.getElementById('category-code'),
@@ -233,6 +242,18 @@ function categories() {
   return state.meta.managedCategories || [];
 }
 
+function selectCategoryCode(code) {
+  const target = cleanCode(code);
+  if (target && categories().some((category) => category.code === target)) {
+    ui.category.value = target;
+    state.lastCategoryCode = target;
+    return;
+  }
+
+  ui.category.value = '';
+  state.lastCategoryCode = '';
+}
+
 function categoryForCode(code) {
   return categories().find((category) => category.code === code);
 }
@@ -274,15 +295,14 @@ function renderBinSelect() {
 }
 
 function renderCategorySelect() {
-  const current = ui.category.value;
+  const current = ui.category.value === addCategoryOptionValue ? state.lastCategoryCode : ui.category.value;
   const options = [new Option('No category', '')];
   categories().forEach((category) => {
     options.push(new Option(categoryDisplay(category), category.code));
   });
+  options.push(new Option('Add category...', addCategoryOptionValue));
   ui.category.replaceChildren(...options);
-  if (categories().some((category) => category.code === current)) {
-    ui.category.value = current;
-  }
+  selectCategoryCode(current);
 }
 
 function renderMoveTargets(excludeCode) {
@@ -442,6 +462,7 @@ function resetForm() {
   ui.form.reset();
   ui.itemId.value = '';
   selectLocationCode('');
+  selectCategoryCode('');
   ui.quantity.value = '1';
   ui.entryTitle.textContent = 'Stock entry';
   ui.saveButton.textContent = 'Save stock';
@@ -491,6 +512,35 @@ function closeQuickBinDialog() {
   }
   ui.quickBinForm.reset();
   setQuickBinStatus('');
+}
+
+function setQuickCategoryStatus(message, isError = false) {
+  ui.quickCategoryStatus.textContent = message;
+  ui.quickCategoryStatus.classList.toggle('error', isError);
+}
+
+function openQuickCategoryDialog() {
+  ui.quickCategoryForm.reset();
+  setQuickCategoryStatus('');
+  ui.saveQuickCategoryButton.disabled = false;
+
+  if (typeof ui.quickCategoryDialog.showModal === 'function') {
+    ui.quickCategoryDialog.showModal();
+  } else {
+    ui.quickCategoryDialog.setAttribute('open', '');
+  }
+
+  setTimeout(() => ui.quickCategoryCode.focus(), 0);
+}
+
+function closeQuickCategoryDialog() {
+  if (ui.quickCategoryDialog.open && typeof ui.quickCategoryDialog.close === 'function') {
+    ui.quickCategoryDialog.close();
+  } else {
+    ui.quickCategoryDialog.removeAttribute('open');
+  }
+  ui.quickCategoryForm.reset();
+  setQuickCategoryStatus('');
 }
 
 function openItemDetail(id) {
@@ -602,7 +652,7 @@ function editItem(id) {
   selectLocationCode(item.locationCode || '');
   ui.locationDetail.value = item.locationDetail || '';
   ui.quantity.value = item.quantity || 1;
-  ui.category.value = item.category || '';
+  selectCategoryCode(item.category || '');
   ui.notes.value = item.notes || '';
   ui.photo.value = '';
   ui.entryTitle.textContent = 'Edit stock';
@@ -634,6 +684,14 @@ function quickBinPayload() {
     action: 'createBin',
     code: ui.quickBinCode.value,
     label: ui.quickBinLabel.value,
+  };
+}
+
+function quickCategoryPayload() {
+  return {
+    action: 'createCategory',
+    code: ui.quickCategoryCode.value,
+    label: ui.quickCategoryLabel.value,
   };
 }
 
@@ -685,6 +743,28 @@ async function saveQuickBin(event) {
     setQuickBinStatus(error.message, true);
   } finally {
     ui.saveQuickBinButton.disabled = false;
+  }
+}
+
+async function saveQuickCategory(event) {
+  event.preventDefault();
+  const createdCode = cleanCode(ui.quickCategoryCode.value);
+  ui.saveQuickCategoryButton.disabled = true;
+  setQuickCategoryStatus('Saving...');
+
+  try {
+    const data = await request(apiUrl, {
+      method: 'POST',
+      body: JSON.stringify(quickCategoryPayload()),
+    });
+    applyPayload(data);
+    selectCategoryCode(createdCode);
+    closeQuickCategoryDialog();
+    setStatus('Category added');
+  } catch (error) {
+    setQuickCategoryStatus(error.message, true);
+  } finally {
+    ui.saveQuickCategoryButton.disabled = false;
   }
 }
 
@@ -965,6 +1045,16 @@ function handleLocationCodeChange() {
   state.lastLocationCode = ui.locationCode.value;
 }
 
+function handleCategoryChange() {
+  if (ui.category.value === addCategoryOptionValue) {
+    selectCategoryCode(state.lastCategoryCode);
+    openQuickCategoryDialog();
+    return;
+  }
+
+  state.lastCategoryCode = ui.category.value;
+}
+
 function setUpdateStatus(message, isError = false) {
   ui.updateStatus.textContent = message;
   ui.updateStatus.classList.toggle('error', isError);
@@ -1110,6 +1200,7 @@ async function loadItems() {
 ui.form.addEventListener('submit', saveItem);
 ui.cancelEdit.addEventListener('click', resetForm);
 ui.locationCode.addEventListener('change', handleLocationCodeChange);
+ui.category.addEventListener('change', handleCategoryChange);
 ui.binForm.addEventListener('submit', saveBin);
 ui.cancelBinEdit.addEventListener('click', resetBinForm);
 ui.confirmBinDelete.addEventListener('click', confirmMoveAndDeleteBin);
@@ -1118,6 +1209,11 @@ ui.quickBinForm.addEventListener('submit', saveQuickBin);
 ui.quickBinCancel.addEventListener('click', closeQuickBinDialog);
 ui.quickBinDialog.addEventListener('click', (event) => {
   if (event.target === ui.quickBinDialog) closeQuickBinDialog();
+});
+ui.quickCategoryForm.addEventListener('submit', saveQuickCategory);
+ui.quickCategoryCancel.addEventListener('click', closeQuickCategoryDialog);
+ui.quickCategoryDialog.addEventListener('click', (event) => {
+  if (event.target === ui.quickCategoryDialog) closeQuickCategoryDialog();
 });
 ui.itemDetailClose.addEventListener('click', closeItemDetail);
 ui.itemDetailEdit.addEventListener('click', editItemFromDetail);

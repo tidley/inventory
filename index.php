@@ -2,7 +2,7 @@
 require_once __DIR__ . '/lib.php';
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/version.php';
-$assetVersion = INVENTORY_VERSION . '-2026-05-23-11';
+$assetVersion = INVENTORY_VERSION . '-2026-05-23-12';
 inventory_require_auth_page($assetVersion);
 ?>
 <!doctype html>
@@ -265,6 +265,30 @@ inventory_require_auth_page($assetVersion);
       <div class="form-actions">
         <button class="primary-button" id="save-quick-bin-button" type="submit">Save bin</button>
         <p class="status" id="quick-bin-status" role="status" aria-live="polite"></p>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog class="modal" id="quick-category-dialog" aria-labelledby="quick-category-title">
+    <form id="quick-category-form" class="modal-card" autocomplete="off">
+      <div class="section-head">
+        <h2 id="quick-category-title">Add category</h2>
+        <button class="text-button" id="quick-category-cancel" type="button">Cancel</button>
+      </div>
+
+      <label class="field" for="quick-category-code">
+        <span>Code</span>
+        <input id="quick-category-code" type="text" inputmode="text" required maxlength="80" placeholder="TOOLS" />
+      </label>
+
+      <label class="field" for="quick-category-label">
+        <span>Label</span>
+        <input id="quick-category-label" type="text" inputmode="text" maxlength="160" placeholder="Tools and hardware" />
+      </label>
+
+      <div class="form-actions">
+        <button class="primary-button" id="save-quick-category-button" type="submit">Save category</button>
+        <p class="status" id="quick-category-status" role="status" aria-live="polite"></p>
       </div>
     </form>
   </dialog>
