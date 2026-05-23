@@ -105,10 +105,7 @@ const ui = {
   results: document.getElementById('results'),
   emptyState: document.getElementById('empty-state'),
   resultCount: document.getElementById('result-count'),
-  itemCount: document.getElementById('item-count'),
-  unitCount: document.getElementById('unit-count'),
-  locationCount: document.getElementById('location-count'),
-  categoryCount: document.getElementById('category-count'),
+  headerStatus: document.getElementById('header-status'),
   queueStat: document.getElementById('queue-stat'),
   queueCount: document.getElementById('queue-count'),
   lastUpdated: document.getElementById('last-updated'),
@@ -304,6 +301,7 @@ async function deleteQueuedMutation(id) {
 function updateQueueStatus() {
   const count = state.pendingQueue.length;
   ui.queueCount.textContent = String(count);
+  ui.headerStatus.classList.toggle('hidden', count === 0);
   ui.queueStat.classList.toggle('hidden', count === 0);
   ui.queueStat.classList.toggle('syncing', state.queueSyncing);
   if (count > 0) {
@@ -824,10 +822,6 @@ function displayDetailTime(value) {
 
 function updateStats(items) {
   const stats = state.meta.stats || {};
-  ui.itemCount.textContent = String(state.items.length);
-  ui.unitCount.textContent = String(state.items.reduce((sum, item) => sum + (item.quantity || 0), 0));
-  ui.locationCount.textContent = String(stats.locationCount ?? bins().length);
-  ui.categoryCount.textContent = String(stats.categoryCount ?? categories().length);
   ui.resultCount.textContent = `${items.length} ${items.length === 1 ? 'result' : 'results'}`;
   ui.lastUpdated.textContent = stats.lastUpdated ? `Updated ${displayTime(stats.lastUpdated)}` : 'Ready';
 }
