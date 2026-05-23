@@ -2,7 +2,7 @@
 require_once __DIR__ . '/lib.php';
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/version.php';
-$assetVersion = INVENTORY_VERSION . '-2026-05-23-12';
+$assetVersion = INVENTORY_VERSION . '-2026-05-23-13';
 inventory_require_auth_page($assetVersion);
 ?>
 <!doctype html>
@@ -37,13 +37,23 @@ inventory_require_auth_page($assetVersion);
       </div>
     </header>
 
-    <section class="entry-panel" aria-labelledby="entry-title">
+    <nav class="app-nav" aria-label="Inventory views">
+      <button class="nav-button active" type="button" data-view-target="search">Search</button>
+      <button class="nav-button" type="button" data-view-target="inventory">Inventory</button>
+      <button class="nav-button" type="button" data-view-target="manage">Manage</button>
+      <button class="nav-button" type="button" data-view-target="settings">Settings</button>
+    </nav>
+
+    <section class="entry-panel view-section" data-view="inventory" aria-labelledby="entry-title">
       <div class="section-head">
         <h2 id="entry-title">Stock entry</h2>
-        <button class="text-button hidden" id="cancel-edit" type="button">Cancel</button>
+        <div class="section-actions">
+          <button class="primary-button compact-primary" id="toggle-entry-form" type="button">Add stock</button>
+          <button class="text-button hidden" id="cancel-edit" type="button">Cancel</button>
+        </div>
       </div>
 
-      <form id="item-form" autocomplete="off">
+      <form id="item-form" class="hidden" autocomplete="off">
         <input type="hidden" id="item-id" name="id" />
 
         <label class="field" for="sku">
@@ -101,13 +111,16 @@ inventory_require_auth_page($assetVersion);
       </form>
     </section>
 
-    <section class="bin-panel" aria-labelledby="bin-title">
+    <section class="bin-panel view-section" data-view="manage" aria-labelledby="bin-title">
       <div class="section-head">
         <h2 id="bin-title">Bins</h2>
-        <button class="text-button hidden" id="cancel-bin-edit" type="button">Cancel</button>
+        <div class="section-actions">
+          <button class="primary-button compact-primary" id="toggle-bin-form" type="button">Add bin</button>
+          <button class="text-button hidden" id="cancel-bin-edit" type="button">Cancel</button>
+        </div>
       </div>
 
-      <form id="bin-form" class="compact-form" autocomplete="off">
+      <form id="bin-form" class="compact-form hidden" autocomplete="off">
         <input type="hidden" id="bin-original-code" />
         <label class="field" for="bin-code">
           <span>Code</span>
@@ -137,13 +150,16 @@ inventory_require_auth_page($assetVersion);
       <div class="bin-list" id="bin-list"></div>
     </section>
 
-    <section class="category-panel" aria-labelledby="category-title">
+    <section class="category-panel view-section" data-view="manage" aria-labelledby="category-title">
       <div class="section-head">
         <h2 id="category-title">Categories</h2>
-        <button class="text-button hidden" id="cancel-category-edit" type="button">Cancel</button>
+        <div class="section-actions">
+          <button class="primary-button compact-primary" id="toggle-category-form" type="button">Add category</button>
+          <button class="text-button hidden" id="cancel-category-edit" type="button">Cancel</button>
+        </div>
       </div>
 
-      <form id="category-form" class="compact-form" autocomplete="off">
+      <form id="category-form" class="compact-form hidden" autocomplete="off">
         <input type="hidden" id="category-original-code" />
         <label class="field" for="category-code">
           <span>Code</span>
@@ -173,7 +189,7 @@ inventory_require_auth_page($assetVersion);
       <div class="bin-list" id="category-list"></div>
     </section>
 
-    <section class="update-panel" aria-labelledby="update-title">
+    <section class="update-panel view-section" data-view="settings" aria-labelledby="update-title">
       <div class="section-head">
         <h2 id="update-title">Updates</h2>
         <button class="text-button" id="check-update-button" type="button">Check</button>
@@ -201,7 +217,7 @@ inventory_require_auth_page($assetVersion);
       </div>
     </section>
 
-    <section class="security-panel" aria-labelledby="security-title">
+    <section class="security-panel view-section" data-view="settings" aria-labelledby="security-title">
       <div class="section-head">
         <h2 id="security-title">Access</h2>
         <button class="text-button" id="logout-button" type="button">Logout</button>
@@ -224,7 +240,7 @@ inventory_require_auth_page($assetVersion);
       </div>
     </section>
 
-    <section class="search-panel" aria-labelledby="search-title">
+    <section class="search-panel view-section active-view" data-view="search" aria-labelledby="search-title">
       <div class="section-head search-head">
         <h2 id="search-title">Pick list</h2>
         <button class="text-button" id="clear-search" type="button">Clear</button>
@@ -240,10 +256,14 @@ inventory_require_auth_page($assetVersion);
         <span id="last-updated">Not synced</span>
       </div>
 
+      <div class="filter-chips" id="filter-chips" aria-label="Category filters"></div>
+
       <div class="results" id="results"></div>
       <p class="empty-state hidden" id="empty-state">No items found.</p>
     </section>
   </main>
+
+  <p class="toast hidden" id="app-toast" role="status" aria-live="polite"></p>
 
   <dialog class="modal" id="quick-bin-dialog" aria-labelledby="quick-bin-title">
     <form id="quick-bin-form" class="modal-card" autocomplete="off">
@@ -348,16 +368,16 @@ inventory_require_auth_page($assetVersion);
     <article class="item-card">
       <div class="item-main">
         <img class="item-photo hidden" alt="" loading="lazy" />
-        <div>
+        <div class="item-copy">
           <p class="item-code hidden"></p>
           <h3 class="item-name"></h3>
           <p class="item-location"></p>
+          <div class="item-details">
+            <span class="category hidden"></span>
+            <span class="updated"></span>
+          </div>
         </div>
         <span class="quantity"></span>
-      </div>
-      <div class="item-details">
-        <span class="category hidden"></span>
-        <span class="updated"></span>
       </div>
       <p class="notes hidden"></p>
       <div class="item-actions">

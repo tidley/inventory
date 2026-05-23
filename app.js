@@ -2,6 +2,7 @@ const apiUrl = 'api.php';
 const addBinOptionValue = '__add_bin__';
 const addCategoryOptionValue = '__add_category__';
 const updateTokenStorageKey = 'inventoryUpdateToken';
+const viewStorageKey = 'inventoryActiveView';
 const maxPhotoDimension = 1280;
 const photoQuality = 0.78;
 
@@ -9,6 +10,8 @@ const state = {
   items: [],
   meta: {},
   query: '',
+  categoryFilter: '',
+  activeView: 'search',
   editingId: '',
   detailItemId: '',
   lastLocationCode: '',
@@ -19,9 +22,13 @@ const state = {
   pendingDeleteCategory: null,
   removePhoto: false,
   previewUrl: '',
+  toastTimer: null,
 };
 
 const ui = {
+  appToast: document.getElementById('app-toast'),
+  navButtons: Array.from(document.querySelectorAll('.nav-button')),
+  viewSections: Array.from(document.querySelectorAll('.view-section')),
   form: document.getElementById('item-form'),
   itemId: document.getElementById('item-id'),
   sku: document.getElementById('sku'),
@@ -36,6 +43,7 @@ const ui = {
   removePhoto: document.getElementById('remove-photo'),
   notes: document.getElementById('notes'),
   entryTitle: document.getElementById('entry-title'),
+  toggleEntryForm: document.getElementById('toggle-entry-form'),
   saveButton: document.getElementById('save-button'),
   saveStatus: document.getElementById('save-status'),
   cancelEdit: document.getElementById('cancel-edit'),
@@ -45,6 +53,7 @@ const ui = {
   binLabel: document.getElementById('bin-label'),
   saveBinButton: document.getElementById('save-bin-button'),
   binStatus: document.getElementById('bin-status'),
+  toggleBinForm: document.getElementById('toggle-bin-form'),
   cancelBinEdit: document.getElementById('cancel-bin-edit'),
   binList: document.getElementById('bin-list'),
   binTemplate: document.getElementById('bin-template'),
@@ -73,6 +82,7 @@ const ui = {
   categoryLabel: document.getElementById('category-label'),
   saveCategoryButton: document.getElementById('save-category-button'),
   categoryStatus: document.getElementById('category-status'),
+  toggleCategoryForm: document.getElementById('toggle-category-form'),
   cancelCategoryEdit: document.getElementById('cancel-category-edit'),
   categoryList: document.getElementById('category-list'),
   categoryTemplate: document.getElementById('category-template'),
@@ -83,6 +93,7 @@ const ui = {
   cancelCategoryDelete: document.getElementById('cancel-category-delete'),
   search: document.getElementById('search'),
   clearSearch: document.getElementById('clear-search'),
+  filterChips: document.getElementById('filter-chips'),
   results: document.getElementById('results'),
   emptyState: document.getElementById('empty-state'),
   resultCount: document.getElementById('result-count'),
@@ -135,6 +146,53 @@ function setStatus(message, isError = false) {
   ui.saveStatus.classList.toggle('error', isError);
 }
 
+function showToast(message, isError = false) {
+  if (state.toastTimer) {
+    clearTimeout(state.toastTimer);
+    state.toastTimer = null;
+  }
+
+  ui.appToast.textContent = message;
+  ui.appToast.classList.toggle('error', isError);
+  ui.appToast.classList.remove('hidden');
+  state.toastTimer = setTimeout(() => {
+    ui.appToast.classList.add('hidden');
+    state.toastTimer = null;
+  }, 2600);
+}
+
+function setActiveView(view) {
+  state.activeView = view;
+  ui.viewSections.forEach((section) => {
+    section.classList.toggle('active-view', section.dataset.view === view);
+  });
+  ui.navButtons.forEach((button) => {
+    const active = button.dataset.viewTarget === view;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-current', active ? 'page' : 'false');
+  });
+
+  try {
+    localStorage.setItem(viewStorageKey, view);
+  } catch (error) {
+    // View persistence is optional.
+  }
+}
+
+function loadSavedView() {
+  try {
+    const saved = localStorage.getItem(viewStorageKey);
+    if (saved && ui.viewSections.some((section) => section.dataset.view === saved)) {
+      setActiveView(saved);
+      return;
+    }
+  } catch (error) {
+    // Ignore storage failures and use the default view.
+  }
+
+  setActiveView(state.activeView);
+}
+
 async function request(path, options = {}) {
   const headers = {
     Accept: 'application/json',
@@ -174,12 +232,17 @@ function applyPayload(data) {
   updateDatalists();
   renderBinSelect();
   renderCategorySelect();
+  renderFilters();
   renderBins();
   renderCategories();
   renderItems();
 }
 
 function itemMatchesQuery(item, query) {
+  if (state.categoryFilter && item.category !== state.categoryFilter) {
+    return false;
+  }
+
   const tokens = query.toLowerCase().trim().split(/\s+/).filter(Boolean);
   if (!tokens.length) return true;
   const text = [
@@ -303,6 +366,40 @@ function renderCategorySelect() {
   options.push(new Option('Add category...', addCategoryOptionValue));
   ui.category.replaceChildren(...options);
   selectCategoryCode(current);
+}
+
+function renderFilters() {
+  if (state.categoryFilter && !categories().some((category) => category.code === state.categoryFilter)) {
+    state.categoryFilter = '';
+  }
+
+  const chips = [];
+  const allButton = document.createElement('button');
+  allButton.type = 'button';
+  allButton.className = `filter-chip${state.categoryFilter ? '' : ' active'}`;
+  allButton.textContent = 'All';
+  allButton.addEventListener('click', () => {
+    state.categoryFilter = '';
+    renderFilters();
+    renderItems();
+  });
+  chips.push(allButton);
+
+  categories().forEach((category) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = `filter-chip${state.categoryFilter === category.code ? ' active' : ''}`;
+    button.textContent = category.code;
+    button.title = categoryDisplay(category);
+    button.addEventListener('click', () => {
+      state.categoryFilter = state.categoryFilter === category.code ? '' : category.code;
+      renderFilters();
+      renderItems();
+    });
+    chips.push(button);
+  });
+
+  ui.filterChips.replaceChildren(...chips);
 }
 
 function renderMoveTargets(excludeCode) {
@@ -466,9 +563,17 @@ function resetForm() {
   ui.quantity.value = '1';
   ui.entryTitle.textContent = 'Stock entry';
   ui.saveButton.textContent = 'Save stock';
+  ui.form.classList.add('hidden');
+  ui.toggleEntryForm.classList.remove('hidden');
   ui.cancelEdit.classList.add('hidden');
   hidePhotoPreview();
   setStatus('');
+}
+
+function openEntryForm() {
+  ui.form.classList.remove('hidden');
+  ui.toggleEntryForm.classList.add('hidden');
+  ui.cancelEdit.classList.remove('hidden');
 }
 
 function setBinStatus(message, isError = false) {
@@ -481,8 +586,16 @@ function resetBinForm() {
   ui.binForm.reset();
   ui.binOriginalCode.value = '';
   ui.saveBinButton.textContent = 'Save bin';
+  ui.binForm.classList.add('hidden');
+  ui.toggleBinForm.classList.remove('hidden');
   ui.cancelBinEdit.classList.add('hidden');
   setBinStatus('');
+}
+
+function openBinForm() {
+  ui.binForm.classList.remove('hidden');
+  ui.toggleBinForm.classList.add('hidden');
+  ui.cancelBinEdit.classList.remove('hidden');
 }
 
 function setQuickBinStatus(message, isError = false) {
@@ -610,19 +723,28 @@ function resetCategoryForm() {
   ui.categoryForm.reset();
   ui.categoryOriginalCode.value = '';
   ui.saveCategoryButton.textContent = 'Save category';
+  ui.categoryForm.classList.add('hidden');
+  ui.toggleCategoryForm.classList.remove('hidden');
   ui.cancelCategoryEdit.classList.add('hidden');
   setCategoryStatus('');
+}
+
+function openCategoryForm() {
+  ui.categoryForm.classList.remove('hidden');
+  ui.toggleCategoryForm.classList.add('hidden');
+  ui.cancelCategoryEdit.classList.remove('hidden');
 }
 
 function editBin(code) {
   const bin = binForCode(code);
   if (!bin) return;
+  setActiveView('manage');
   state.binEditingCode = bin.code;
   ui.binOriginalCode.value = bin.code;
   ui.binCode.value = bin.code;
   ui.binLabel.value = bin.label || '';
   ui.saveBinButton.textContent = 'Update bin';
-  ui.cancelBinEdit.classList.remove('hidden');
+  openBinForm();
   setBinStatus('');
   ui.binCode.focus();
 }
@@ -630,12 +752,13 @@ function editBin(code) {
 function editCategory(code) {
   const category = categoryForCode(code);
   if (!category) return;
+  setActiveView('manage');
   state.categoryEditingCode = category.code;
   ui.categoryOriginalCode.value = category.code;
   ui.categoryCode.value = category.code;
   ui.categoryLabel.value = category.label || '';
   ui.saveCategoryButton.textContent = 'Update category';
-  ui.cancelCategoryEdit.classList.remove('hidden');
+  openCategoryForm();
   setCategoryStatus('');
   ui.categoryCode.focus();
 }
@@ -644,6 +767,7 @@ function editItem(id) {
   const item = state.items.find((candidate) => Number(candidate.id) === Number(id));
   if (!item) return;
 
+  setActiveView('inventory');
   state.editingId = item.id;
   state.removePhoto = false;
   ui.itemId.value = item.id;
@@ -657,7 +781,7 @@ function editItem(id) {
   ui.photo.value = '';
   ui.entryTitle.textContent = 'Edit stock';
   ui.saveButton.textContent = 'Update stock';
-  ui.cancelEdit.classList.remove('hidden');
+  openEntryForm();
   setStatus('');
 
   if (item.hasPhoto && item.photoUrl) {
@@ -716,7 +840,7 @@ async function saveBin(event) {
     });
     resetBinForm();
     applyPayload(data);
-    setBinStatus('Saved');
+    showToast('Bin saved');
   } catch (error) {
     setBinStatus(error.message, true);
   } finally {
@@ -738,7 +862,7 @@ async function saveQuickBin(event) {
     applyPayload(data);
     selectLocationCode(createdCode);
     closeQuickBinDialog();
-    setStatus('Bin added');
+    showToast('Bin added');
   } catch (error) {
     setQuickBinStatus(error.message, true);
   } finally {
@@ -760,7 +884,7 @@ async function saveQuickCategory(event) {
     applyPayload(data);
     selectCategoryCode(createdCode);
     closeQuickCategoryDialog();
-    setStatus('Category added');
+    showToast('Category added');
   } catch (error) {
     setQuickCategoryStatus(error.message, true);
   } finally {
@@ -780,7 +904,7 @@ async function saveCategory(event) {
     });
     resetCategoryForm();
     applyPayload(data);
-    setCategoryStatus('Saved');
+    showToast('Category saved');
   } catch (error) {
     setCategoryStatus(error.message, true);
   } finally {
@@ -997,7 +1121,8 @@ async function saveItem(event) {
     });
     resetForm();
     applyPayload(data);
-    setStatus('Saved');
+    setActiveView('search');
+    showToast('Stock saved');
   } catch (error) {
     setStatus(error.message, true);
   } finally {
@@ -1053,6 +1178,24 @@ function handleCategoryChange() {
   }
 
   state.lastCategoryCode = ui.category.value;
+}
+
+function startAddStock() {
+  resetForm();
+  openEntryForm();
+  ui.name.focus();
+}
+
+function startAddBin() {
+  resetBinForm();
+  openBinForm();
+  ui.binCode.focus();
+}
+
+function startAddCategory() {
+  resetCategoryForm();
+  openCategoryForm();
+  ui.categoryCode.focus();
 }
 
 function setUpdateStatus(message, isError = false) {
@@ -1198,10 +1341,12 @@ async function loadItems() {
 }
 
 ui.form.addEventListener('submit', saveItem);
+ui.toggleEntryForm.addEventListener('click', startAddStock);
 ui.cancelEdit.addEventListener('click', resetForm);
 ui.locationCode.addEventListener('change', handleLocationCodeChange);
 ui.category.addEventListener('change', handleCategoryChange);
 ui.binForm.addEventListener('submit', saveBin);
+ui.toggleBinForm.addEventListener('click', startAddBin);
 ui.cancelBinEdit.addEventListener('click', resetBinForm);
 ui.confirmBinDelete.addEventListener('click', confirmMoveAndDeleteBin);
 ui.cancelBinDelete.addEventListener('click', hideMovePanel);
@@ -1225,6 +1370,7 @@ ui.itemDetailDialog.addEventListener('close', () => {
   ui.itemDetailPhoto.removeAttribute('src');
 });
 ui.categoryForm.addEventListener('submit', saveCategory);
+ui.toggleCategoryForm.addEventListener('click', startAddCategory);
 ui.cancelCategoryEdit.addEventListener('click', resetCategoryForm);
 ui.confirmCategoryDelete.addEventListener('click', confirmMoveAndDeleteCategory);
 ui.cancelCategoryDelete.addEventListener('click', hideCategoryMovePanel);
@@ -1259,8 +1405,16 @@ ui.search.addEventListener('input', () => {
 ui.clearSearch.addEventListener('click', () => {
   ui.search.value = '';
   state.query = '';
+  state.categoryFilter = '';
+  renderFilters();
   renderItems();
   ui.search.focus();
+});
+
+ui.navButtons.forEach((button) => {
+  button.addEventListener('click', () => {
+    setActiveView(button.dataset.viewTarget || 'search');
+  });
 });
 
 if ('serviceWorker' in navigator) {
@@ -1272,4 +1426,5 @@ if ('serviceWorker' in navigator) {
 }
 
 loadSavedUpdateToken();
+loadSavedView();
 loadItems();
