@@ -801,13 +801,13 @@ textarea:focus {
 }
 
 .minus-button {
-  border-color: #5a382e;
-  color: var(--negative-text);
-  background: var(--negative-bg);
+  border-color: var(--chip-border);
+  color: var(--chip-text);
+  background: var(--chip-bg);
 }
 
 .minus-button:hover {
-  background: #493026;
+  background: #1d2d3f;
 }
 
 .danger-button {
