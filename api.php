@@ -77,7 +77,7 @@ function item_input($data) {
   $name = clean_text(array_value($data, 'name', ''), 160);
   $locationCode = strtoupper(clean_text(array_value($data, 'locationCode', ''), 80));
   $locationDetail = clean_text(array_value($data, 'locationDetail', ''), 160);
-  $category = clean_text(array_value($data, 'category', ''), 80);
+  $category = strtoupper(clean_text(array_value($data, 'category', ''), 80));
   $notes = clean_notes(array_value($data, 'notes', ''));
   $quantity = clean_quantity(array_value($data, 'quantity', 1));
 
@@ -93,6 +93,10 @@ function item_input($data) {
     json_response(array('error' => 'Choose a configured bin'), 422);
   }
 
+  if ($category !== '' && !category_exists($category)) {
+    json_response(array('error' => 'Choose a configured category'), 422);
+  }
+
   return array(
     'sku' => $sku,
     'name' => $name,
@@ -101,6 +105,20 @@ function item_input($data) {
     'quantity' => $quantity,
     'category' => $category,
     'notes' => $notes,
+  );
+}
+
+function category_input($data, $codeKey) {
+  $code = strtoupper(clean_text(array_value($data, $codeKey, ''), 80));
+  $label = clean_text(array_value($data, 'label', ''), 160);
+
+  if ($code === '') {
+    json_response(array('error' => 'Category code is required'), 422);
+  }
+
+  return array(
+    'code' => $code,
+    'label' => $label,
   );
 }
 
@@ -120,6 +138,12 @@ function bin_input($data, $codeKey) {
 
 function bin_exists($code) {
   $stmt = inventory_db()->prepare('SELECT code FROM inventory_bins WHERE code = :code');
+  $stmt->execute(array(':code' => $code));
+  return (bool) $stmt->fetch();
+}
+
+function category_exists($code) {
+  $stmt = inventory_db()->prepare('SELECT code FROM inventory_categories WHERE code = :code');
   $stmt->execute(array(':code' => $code));
   return (bool) $stmt->fetch();
 }
@@ -221,6 +245,7 @@ function stats() {
       COUNT(*) AS item_count,
       COALESCE(SUM(quantity), 0) AS unit_count,
       (SELECT COUNT(*) FROM inventory_bins) AS location_count,
+      (SELECT COUNT(*) FROM inventory_categories) AS category_count,
       MAX(updated_at) AS last_updated
     FROM inventory_items"
   )->fetch();
@@ -229,6 +254,7 @@ function stats() {
     'itemCount' => (int) array_value($row, 'item_count', 0),
     'unitCount' => (int) array_value($row, 'unit_count', 0),
     'locationCount' => (int) array_value($row, 'location_count', 0),
+    'categoryCount' => (int) array_value($row, 'category_count', 0),
     'lastUpdated' => iso_time(array_value($row, 'last_updated', null)),
   );
 }
@@ -256,6 +282,29 @@ function list_bins() {
   return $bins;
 }
 
+function list_categories() {
+  $stmt = inventory_db()->query(
+    "SELECT
+      c.code,
+      c.label,
+      COUNT(i.id) AS item_count
+    FROM inventory_categories c
+    LEFT JOIN inventory_items i ON i.category = c.code
+    GROUP BY c.id, c.code, c.label
+    ORDER BY c.code"
+  );
+
+  $categories = array();
+  foreach ($stmt->fetchAll() as $row) {
+    $categories[] = array(
+      'code' => (string) $row['code'],
+      'label' => (string) $row['label'],
+      'itemCount' => (int) $row['item_count'],
+    );
+  }
+  return $categories;
+}
+
 function distinct_values($column) {
   $allowed = array('location_code', 'location_detail', 'category');
   if (!in_array($column, $allowed, true)) {
@@ -272,9 +321,11 @@ function distinct_values($column) {
 
 function meta() {
   $bins = list_bins();
+  $categories = list_categories();
   return array(
     'stats' => stats(),
     'bins' => $bins,
+    'managedCategories' => $categories,
     'locations' => distinct_values('location_code'),
     'locationDetails' => distinct_values('location_detail'),
     'categories' => distinct_values('category'),
@@ -405,6 +456,111 @@ try {
     } catch (Exception $error) {
       $db->rollBack();
       json_response(array('error' => 'Bin could not be deleted'), 500);
+    }
+
+    send_inventory();
+  }
+
+  if ($action === 'createCategory') {
+    $category = category_input($input, 'code');
+    if (category_exists($category['code'])) {
+      json_response(array('error' => 'Category already exists'), 422);
+    }
+
+    $stmt = inventory_db()->prepare('INSERT INTO inventory_categories (code, label) VALUES (:code, :label)');
+    bind_and_execute($stmt, array(
+      ':code' => $category['code'],
+      ':label' => $category['label'],
+    ));
+
+    send_inventory();
+  }
+
+  if ($action === 'updateCategory') {
+    $originalCode = strtoupper(clean_text(array_value($input, 'originalCode', ''), 80));
+    $category = category_input($input, 'code');
+
+    if ($originalCode === '' || !category_exists($originalCode)) {
+      json_response(array('error' => 'Category not found'), 404);
+    }
+
+    if ($originalCode !== $category['code'] && category_exists($category['code'])) {
+      json_response(array('error' => 'Category already exists'), 422);
+    }
+
+    $db = inventory_db();
+    $db->beginTransaction();
+    try {
+      $stmt = $db->prepare('UPDATE inventory_categories SET code = :code, label = :label WHERE code = :original_code');
+      bind_and_execute($stmt, array(
+        ':code' => $category['code'],
+        ':label' => $category['label'],
+        ':original_code' => $originalCode,
+      ));
+
+      if ($originalCode !== $category['code']) {
+        $stmt = $db->prepare('UPDATE inventory_items SET category = :code WHERE category = :original_code');
+        bind_and_execute($stmt, array(
+          ':code' => $category['code'],
+          ':original_code' => $originalCode,
+        ));
+      }
+
+      $db->commit();
+    } catch (Exception $error) {
+      $db->rollBack();
+      json_response(array('error' => 'Category could not be updated'), 500);
+    }
+
+    send_inventory();
+  }
+
+  if ($action === 'deleteCategory') {
+    $code = strtoupper(clean_text(array_value($input, 'code', ''), 80));
+    $moveTo = strtoupper(clean_text(array_value($input, 'moveTo', ''), 80));
+
+    if ($code === '' || !category_exists($code)) {
+      json_response(array('error' => 'Category not found'), 404);
+    }
+
+    $stmt = inventory_db()->prepare('SELECT COUNT(*) AS item_count FROM inventory_items WHERE category = :code');
+    $stmt->execute(array(':code' => $code));
+    $row = $stmt->fetch();
+    $itemCount = (int) array_value($row, 'item_count', 0);
+
+    if ($itemCount > 0 && $moveTo === '') {
+      json_response(array(
+        'error' => 'Move items before deleting this category',
+        'requiresMove' => true,
+        'categoryCode' => $code,
+        'itemCount' => $itemCount,
+        'meta' => meta(),
+      ), 409);
+    }
+
+    if ($itemCount > 0) {
+      if ($moveTo === $code || !category_exists($moveTo)) {
+        json_response(array('error' => 'Choose another category to move items into'), 422);
+      }
+    }
+
+    $db = inventory_db();
+    $db->beginTransaction();
+    try {
+      if ($itemCount > 0) {
+        $stmt = $db->prepare('UPDATE inventory_items SET category = :move_to WHERE category = :code');
+        bind_and_execute($stmt, array(
+          ':move_to' => $moveTo,
+          ':code' => $code,
+        ));
+      }
+
+      $stmt = $db->prepare('DELETE FROM inventory_categories WHERE code = :code');
+      bind_and_execute($stmt, array(':code' => $code));
+      $db->commit();
+    } catch (Exception $error) {
+      $db->rollBack();
+      json_response(array('error' => 'Category could not be deleted'), 500);
     }
 
     send_inventory();

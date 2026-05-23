@@ -9,6 +9,8 @@ const state = {
   editingId: '',
   binEditingCode: '',
   pendingDeleteBin: null,
+  categoryEditingCode: '',
+  pendingDeleteCategory: null,
   removePhoto: false,
   previewUrl: '',
 };
@@ -45,6 +47,20 @@ const ui = {
   moveBinTarget: document.getElementById('move-bin-target'),
   confirmBinDelete: document.getElementById('confirm-bin-delete'),
   cancelBinDelete: document.getElementById('cancel-bin-delete'),
+  categoryForm: document.getElementById('category-form'),
+  categoryOriginalCode: document.getElementById('category-original-code'),
+  categoryCode: document.getElementById('category-code'),
+  categoryLabel: document.getElementById('category-label'),
+  saveCategoryButton: document.getElementById('save-category-button'),
+  categoryStatus: document.getElementById('category-status'),
+  cancelCategoryEdit: document.getElementById('cancel-category-edit'),
+  categoryList: document.getElementById('category-list'),
+  categoryTemplate: document.getElementById('category-template'),
+  categoryMovePanel: document.getElementById('category-move-panel'),
+  moveCategoryLabel: document.getElementById('move-category-label'),
+  moveCategoryTarget: document.getElementById('move-category-target'),
+  confirmCategoryDelete: document.getElementById('confirm-category-delete'),
+  cancelCategoryDelete: document.getElementById('cancel-category-delete'),
   search: document.getElementById('search'),
   clearSearch: document.getElementById('clear-search'),
   results: document.getElementById('results'),
@@ -53,10 +69,10 @@ const ui = {
   itemCount: document.getElementById('item-count'),
   unitCount: document.getElementById('unit-count'),
   locationCount: document.getElementById('location-count'),
+  categoryCount: document.getElementById('category-count'),
   lastUpdated: document.getElementById('last-updated'),
   itemTemplate: document.getElementById('item-template'),
   locationDetails: document.getElementById('location-details'),
-  categories: document.getElementById('categories'),
 };
 
 const formatUpdated = new Intl.DateTimeFormat('en-GB', {
@@ -106,7 +122,9 @@ function applyPayload(data) {
   state.meta = data.meta || {};
   updateDatalists();
   renderBinSelect();
+  renderCategorySelect();
   renderBins();
+  renderCategories();
   renderItems();
 }
 
@@ -138,7 +156,6 @@ function optionsFrom(values = []) {
 
 function updateDatalists() {
   ui.locationDetails.replaceChildren(...optionsFrom(state.meta.locationDetails || []));
-  ui.categories.replaceChildren(...optionsFrom(state.meta.categories || []));
 }
 
 function bins() {
@@ -154,6 +171,19 @@ function binDisplay(bin) {
   return bin.label ? `${bin.code} · ${bin.label}` : bin.code;
 }
 
+function categories() {
+  return state.meta.managedCategories || [];
+}
+
+function categoryForCode(code) {
+  return categories().find((category) => category.code === code);
+}
+
+function categoryDisplay(category) {
+  if (!category) return '';
+  return category.label ? `${category.code} · ${category.label}` : category.code;
+}
+
 function renderBinSelect() {
   const current = ui.locationCode.value;
   const options = [new Option('Select bin', '')];
@@ -163,6 +193,18 @@ function renderBinSelect() {
   ui.locationCode.replaceChildren(...options);
   if (bins().some((bin) => bin.code === current)) {
     ui.locationCode.value = current;
+  }
+}
+
+function renderCategorySelect() {
+  const current = ui.category.value;
+  const options = [new Option('No category', '')];
+  categories().forEach((category) => {
+    options.push(new Option(categoryDisplay(category), category.code));
+  });
+  ui.category.replaceChildren(...options);
+  if (categories().some((category) => category.code === current)) {
+    ui.category.value = current;
   }
 }
 
@@ -176,6 +218,16 @@ function renderMoveTargets(excludeCode) {
   ui.moveBinTarget.replaceChildren(...options);
 }
 
+function renderCategoryMoveTargets(excludeCode) {
+  const options = [new Option('Select category', '')];
+  categories()
+    .filter((category) => category.code !== excludeCode)
+    .forEach((category) => {
+      options.push(new Option(categoryDisplay(category), category.code));
+    });
+  ui.moveCategoryTarget.replaceChildren(...options);
+}
+
 function displayTime(value) {
   if (!value) return '';
   const date = new Date(value);
@@ -187,6 +239,7 @@ function updateStats(items) {
   ui.itemCount.textContent = String(stats.itemCount ?? state.items.length);
   ui.unitCount.textContent = String(stats.unitCount ?? state.items.reduce((sum, item) => sum + (item.quantity || 0), 0));
   ui.locationCount.textContent = String(stats.locationCount ?? 0);
+  ui.categoryCount.textContent = String(stats.categoryCount ?? categories().length);
   ui.resultCount.textContent = `${items.length} ${items.length === 1 ? 'result' : 'results'}`;
   ui.lastUpdated.textContent = stats.lastUpdated ? `Updated ${displayTime(stats.lastUpdated)}` : 'Ready';
 }
@@ -225,8 +278,9 @@ function renderItems() {
       code.classList.remove('hidden');
     }
 
+    const itemCategory = categoryForCode(item.category);
     if (item.category) {
-      category.textContent = item.category;
+      category.textContent = itemCategory ? categoryDisplay(itemCategory) : item.category;
       category.classList.remove('hidden');
     }
 
@@ -244,6 +298,20 @@ function renderItems() {
 
   ui.emptyState.classList.toggle('hidden', items.length !== 0);
   updateStats(items);
+}
+
+function renderCategories() {
+  ui.categoryList.replaceChildren();
+
+  categories().forEach((category) => {
+    const fragment = ui.categoryTemplate.content.cloneNode(true);
+    fragment.querySelector('.category-code').textContent = category.code;
+    fragment.querySelector('.category-label').textContent = category.label || '';
+    fragment.querySelector('.category-count-row').textContent = `${category.itemCount || 0} ${category.itemCount === 1 ? 'item' : 'items'}`;
+    fragment.querySelector('.category-edit-button').addEventListener('click', () => editCategory(category.code));
+    fragment.querySelector('.category-delete-button').addEventListener('click', () => deleteCategory(category.code));
+    ui.categoryList.appendChild(fragment);
+  });
 }
 
 function renderBins() {
@@ -305,6 +373,20 @@ function resetBinForm() {
   setBinStatus('');
 }
 
+function setCategoryStatus(message, isError = false) {
+  ui.categoryStatus.textContent = message;
+  ui.categoryStatus.classList.toggle('error', isError);
+}
+
+function resetCategoryForm() {
+  state.categoryEditingCode = '';
+  ui.categoryForm.reset();
+  ui.categoryOriginalCode.value = '';
+  ui.saveCategoryButton.textContent = 'Save category';
+  ui.cancelCategoryEdit.classList.add('hidden');
+  setCategoryStatus('');
+}
+
 function editBin(code) {
   const bin = binForCode(code);
   if (!bin) return;
@@ -316,6 +398,19 @@ function editBin(code) {
   ui.cancelBinEdit.classList.remove('hidden');
   setBinStatus('');
   ui.binCode.focus();
+}
+
+function editCategory(code) {
+  const category = categoryForCode(code);
+  if (!category) return;
+  state.categoryEditingCode = category.code;
+  ui.categoryOriginalCode.value = category.code;
+  ui.categoryCode.value = category.code;
+  ui.categoryLabel.value = category.label || '';
+  ui.saveCategoryButton.textContent = 'Update category';
+  ui.cancelCategoryEdit.classList.remove('hidden');
+  setCategoryStatus('');
+  ui.categoryCode.focus();
 }
 
 function editItem(id) {
@@ -357,6 +452,15 @@ function binPayload() {
   };
 }
 
+function categoryPayload() {
+  return {
+    action: state.categoryEditingCode ? 'updateCategory' : 'createCategory',
+    originalCode: state.categoryEditingCode,
+    code: ui.categoryCode.value,
+    label: ui.categoryLabel.value,
+  };
+}
+
 async function saveBin(event) {
   event.preventDefault();
   ui.saveBinButton.disabled = true;
@@ -377,6 +481,26 @@ async function saveBin(event) {
   }
 }
 
+async function saveCategory(event) {
+  event.preventDefault();
+  ui.saveCategoryButton.disabled = true;
+  setCategoryStatus('Saving...');
+
+  try {
+    const data = await request(apiUrl, {
+      method: 'POST',
+      body: JSON.stringify(categoryPayload()),
+    });
+    resetCategoryForm();
+    applyPayload(data);
+    setCategoryStatus('Saved');
+  } catch (error) {
+    setCategoryStatus(error.message, true);
+  } finally {
+    ui.saveCategoryButton.disabled = false;
+  }
+}
+
 function showMovePanel(code, itemCount) {
   state.pendingDeleteBin = { code, itemCount };
   ui.moveBinLabel.textContent = `Move ${itemCount} ${itemCount === 1 ? 'item' : 'items'} from ${code} to`;
@@ -389,6 +513,20 @@ function hideMovePanel() {
   state.pendingDeleteBin = null;
   ui.binMovePanel.classList.add('hidden');
   ui.moveBinTarget.replaceChildren();
+}
+
+function showCategoryMovePanel(code, itemCount) {
+  state.pendingDeleteCategory = { code, itemCount };
+  ui.moveCategoryLabel.textContent = `Move ${itemCount} ${itemCount === 1 ? 'item' : 'items'} from ${code} to`;
+  renderCategoryMoveTargets(code);
+  ui.categoryMovePanel.classList.remove('hidden');
+  ui.moveCategoryTarget.focus();
+}
+
+function hideCategoryMovePanel() {
+  state.pendingDeleteCategory = null;
+  ui.categoryMovePanel.classList.add('hidden');
+  ui.moveCategoryTarget.replaceChildren();
 }
 
 async function deleteBin(code) {
@@ -436,6 +574,54 @@ async function confirmMoveAndDeleteBin() {
     setBinStatus('Moved and deleted');
   } catch (error) {
     setBinStatus(error.message, true);
+  }
+}
+
+async function deleteCategory(code) {
+  if (!window.confirm(`Delete category "${code}"?`)) return;
+
+  try {
+    const data = await request(apiUrl, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'deleteCategory', code }),
+    });
+    hideCategoryMovePanel();
+    applyPayload(data);
+    setCategoryStatus('Deleted');
+  } catch (error) {
+    if (error.data && error.data.requiresMove) {
+      state.meta = error.data.meta || state.meta;
+      renderCategoryMoveTargets(code);
+      showCategoryMovePanel(error.data.categoryCode || code, error.data.itemCount || 0);
+      setCategoryStatus(error.message, true);
+      return;
+    }
+    setCategoryStatus(error.message, true);
+  }
+}
+
+async function confirmMoveAndDeleteCategory() {
+  if (!state.pendingDeleteCategory) return;
+  const moveTo = ui.moveCategoryTarget.value;
+  if (!moveTo) {
+    setCategoryStatus('Choose another category first', true);
+    return;
+  }
+
+  try {
+    const data = await request(apiUrl, {
+      method: 'POST',
+      body: JSON.stringify({
+        action: 'deleteCategory',
+        code: state.pendingDeleteCategory.code,
+        moveTo,
+      }),
+    });
+    hideCategoryMovePanel();
+    applyPayload(data);
+    setCategoryStatus('Moved and deleted');
+  } catch (error) {
+    setCategoryStatus(error.message, true);
   }
 }
 
@@ -578,6 +764,10 @@ ui.binForm.addEventListener('submit', saveBin);
 ui.cancelBinEdit.addEventListener('click', resetBinForm);
 ui.confirmBinDelete.addEventListener('click', confirmMoveAndDeleteBin);
 ui.cancelBinDelete.addEventListener('click', hideMovePanel);
+ui.categoryForm.addEventListener('submit', saveCategory);
+ui.cancelCategoryEdit.addEventListener('click', resetCategoryForm);
+ui.confirmCategoryDelete.addEventListener('click', confirmMoveAndDeleteCategory);
+ui.cancelCategoryDelete.addEventListener('click', hideCategoryMovePanel);
 
 ui.photo.addEventListener('change', () => {
   state.removePhoto = false;

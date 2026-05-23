@@ -1,5 +1,5 @@
 <?php
-$assetVersion = '2026-05-23-4';
+$assetVersion = '2026-05-23-5';
 ?>
 <!doctype html>
 <html lang="en">
@@ -8,7 +8,7 @@ $assetVersion = '2026-05-23-4';
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Inventory</title>
   <meta name="description" content="Personal warehouse-style inventory tracker." />
-  <meta name="theme-color" content="#1f4d43" />
+  <meta name="theme-color" content="#101418" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-title" content="Inventory" />
   <link rel="manifest" href="manifest.json" />
@@ -29,6 +29,7 @@ $assetVersion = '2026-05-23-4';
         <span><strong id="item-count">0</strong> lines</span>
         <span><strong id="unit-count">0</strong> units</span>
         <span><strong id="location-count">0</strong> bins</span>
+        <span><strong id="category-count">0</strong> categories</span>
       </div>
     </header>
 
@@ -70,7 +71,9 @@ $assetVersion = '2026-05-23-4';
 
         <label class="field" for="category">
           <span>Category</span>
-          <input id="category" name="category" type="text" maxlength="80" list="categories" placeholder="Tools" />
+          <select id="category" name="category">
+            <option value="">No category</option>
+          </select>
         </label>
 
         <label class="field field-full photo-field" for="photo">
@@ -130,6 +133,42 @@ $assetVersion = '2026-05-23-4';
       <div class="bin-list" id="bin-list"></div>
     </section>
 
+    <section class="category-panel" aria-labelledby="category-title">
+      <div class="section-head">
+        <h2 id="category-title">Categories</h2>
+        <button class="text-button hidden" id="cancel-category-edit" type="button">Cancel</button>
+      </div>
+
+      <form id="category-form" class="compact-form" autocomplete="off">
+        <input type="hidden" id="category-original-code" />
+        <label class="field" for="category-code">
+          <span>Code</span>
+          <input id="category-code" type="text" inputmode="text" required maxlength="80" placeholder="TOOLS" />
+        </label>
+        <label class="field" for="category-label">
+          <span>Label</span>
+          <input id="category-label" type="text" inputmode="text" maxlength="160" placeholder="Tools and hardware" />
+        </label>
+        <div class="form-actions">
+          <button class="primary-button" id="save-category-button" type="submit">Save category</button>
+          <p class="status" id="category-status" role="status" aria-live="polite"></p>
+        </div>
+      </form>
+
+      <div class="move-panel hidden" id="category-move-panel">
+        <label class="field" for="move-category-target">
+          <span id="move-category-label">Move items to</span>
+          <select id="move-category-target"></select>
+        </label>
+        <div class="item-actions">
+          <button class="small-button danger-button" id="confirm-category-delete" type="button">Move and delete</button>
+          <button class="small-button" id="cancel-category-delete" type="button">Cancel</button>
+        </div>
+      </div>
+
+      <div class="bin-list" id="category-list"></div>
+    </section>
+
     <section class="search-panel" aria-labelledby="search-title">
       <div class="section-head search-head">
         <h2 id="search-title">Pick list</h2>
@@ -150,8 +189,6 @@ $assetVersion = '2026-05-23-4';
       <p class="empty-state hidden" id="empty-state">No items found.</p>
     </section>
   </main>
-
-  <datalist id="categories"></datalist>
 
   <template id="item-template">
     <article class="item-card">
@@ -174,6 +211,20 @@ $assetVersion = '2026-05-23-4';
         <button class="small-button plus-button" type="button">+1</button>
         <button class="small-button edit-button" type="button">Edit</button>
         <button class="small-button danger-button delete-button" type="button">Delete</button>
+      </div>
+    </article>
+  </template>
+
+  <template id="category-template">
+    <article class="bin-row">
+      <div>
+        <h3 class="category-code"></h3>
+        <p class="category-label"></p>
+      </div>
+      <span class="category-count-row"></span>
+      <div class="item-actions">
+        <button class="small-button category-edit-button" type="button">Edit</button>
+        <button class="small-button danger-button category-delete-button" type="button">Delete</button>
       </div>
     </article>
   </template>

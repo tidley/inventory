@@ -144,6 +144,30 @@ function inventory_seed_bins_from_items() {
   );
 }
 
+function inventory_ensure_categories_schema() {
+  inventory_db()->exec(
+    "CREATE TABLE IF NOT EXISTS inventory_categories (
+      id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+      code VARCHAR(80) NOT NULL,
+      label VARCHAR(160) NOT NULL DEFAULT '',
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      UNIQUE KEY uniq_code (code),
+      KEY idx_label (label)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+  );
+}
+
+function inventory_seed_categories_from_items() {
+  inventory_db()->exec(
+    "INSERT IGNORE INTO inventory_categories (code, label)
+      SELECT DISTINCT category, category
+      FROM inventory_items
+      WHERE category <> ''"
+  );
+}
+
 function inventory_ensure_schema() {
   inventory_db()->exec(
     "CREATE TABLE IF NOT EXISTS inventory_items (
@@ -176,6 +200,8 @@ function inventory_ensure_schema() {
   inventory_ensure_column('photo_updated_at', 'photo_updated_at TIMESTAMP NULL DEFAULT NULL AFTER photo_data');
   inventory_ensure_bins_schema();
   inventory_seed_bins_from_items();
+  inventory_ensure_categories_schema();
+  inventory_seed_categories_from_items();
 }
 
 function clean_text($value, $maxLength) {
