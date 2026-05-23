@@ -5,6 +5,7 @@ config.php
 node_modules/
 vendor/
 data/
+build/
 *.tmp
 *.log
 .DS_Store

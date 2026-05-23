@@ -114,6 +114,7 @@ h3 {
 .entry-panel,
 .bin-panel,
 .category-panel,
+.update-panel,
 .search-panel {
   background: var(--surface);
   border: 1px solid var(--line);
@@ -324,6 +325,60 @@ textarea:focus {
   background: rgba(255, 124, 111, 0.1);
 }
 
+.update-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.update-grid div {
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #151b20;
+}
+
+.update-grid span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.update-actions {
+  margin-top: 12px;
+}
+
+.modal {
+  width: min(430px, calc(100% - 28px));
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+}
+
+.modal::backdrop {
+  background: rgba(5, 8, 10, 0.72);
+}
+
+.modal-card {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  width: 100%;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.modal-card .section-head {
+  margin-bottom: 0;
+}
+
 .item-card {
   display: grid;
   gap: 8px;
@@ -453,6 +508,7 @@ textarea:focus {
   .entry-panel,
   .bin-panel,
   .category-panel,
+  .update-panel,
   .search-panel {
     padding: 18px;
   }
@@ -479,6 +535,7 @@ textarea:focus {
 
   .compact-form,
   .move-panel,
+  .update-grid,
   .bin-row {
     grid-template-columns: 1fr;
   }

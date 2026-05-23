@@ -1,6 +1,7 @@
 <?php
 
 require __DIR__ . '/lib.php';
+require __DIR__ . '/updater.php';
 
 header('Content-Type: application/json; charset=utf-8');
 header('X-Content-Type-Options: nosniff');
@@ -339,10 +340,69 @@ function send_inventory($query = '') {
   ));
 }
 
-try {
-  inventory_ensure_schema();
+function update_token_configured() {
+  $env = inventory_env();
+  return clean_text(array_value($env, 'UPDATE_TOKEN', ''), 200) !== '';
+}
 
+function update_status_payload() {
+  $status = InventoryUpdater::getUpdateStatus();
+  $status['installEnabled'] = update_token_configured();
+  $status['installRequiresToken'] = true;
+  return $status;
+}
+
+function require_update_token($input) {
+  $env = inventory_env();
+  $expected = clean_text(array_value($env, 'UPDATE_TOKEN', ''), 200);
+  if ($expected === '') {
+    json_response(array('error' => 'Set UPDATE_TOKEN in .env to enable updates'), 403);
+  }
+
+  $provided = '';
+  if (isset($_SERVER['HTTP_X_INVENTORY_UPDATE_TOKEN'])) {
+    $provided = clean_text($_SERVER['HTTP_X_INVENTORY_UPDATE_TOKEN'], 200);
+  } else {
+    $provided = clean_text(array_value($input, 'updateToken', ''), 200);
+  }
+
+  if ($provided === '' || !hash_equals($expected, $provided)) {
+    json_response(array('error' => 'Update token is invalid'), 403);
+  }
+}
+
+try {
   $method = isset($_SERVER['REQUEST_METHOD']) ? $_SERVER['REQUEST_METHOD'] : 'GET';
+  $input = array();
+  $action = '';
+
+  if ($method === 'POST') {
+    $input = read_json_input();
+    $action = clean_text(array_value($input, 'action', ''), 20);
+
+    if ($action === 'updateStatus') {
+      try {
+        json_response(update_status_payload());
+      } catch (Exception $error) {
+        json_response(array('success' => false, 'error' => $error->getMessage()), 400);
+      }
+    }
+
+    if ($action === 'updateInstallStatus') {
+      json_response(InventoryUpdater::getInstallStatus());
+    }
+
+    if ($action === 'installUpdate') {
+      require_update_token($input);
+      try {
+        json_response(InventoryUpdater::installLatest());
+      } catch (Exception $error) {
+        json_response(array('success' => false, 'error' => $error->getMessage()), 500);
+      }
+    }
+  }
+
+  inventory_ensure_schema();
 
   if ($method === 'GET') {
     $query = isset($_GET['q']) ? (string) $_GET['q'] : '';
@@ -352,9 +412,6 @@ try {
   if ($method !== 'POST') {
     json_response(array('error' => 'Method not allowed'), 405);
   }
-
-  $input = read_json_input();
-  $action = clean_text(array_value($input, 'action', ''), 20);
 
   if ($action === 'createBin') {
     $bin = bin_input($input, 'code');

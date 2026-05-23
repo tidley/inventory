@@ -1,5 +1,6 @@
 <?php
-$assetVersion = '2026-05-23-5';
+require_once __DIR__ . '/version.php';
+$assetVersion = INVENTORY_VERSION . '-2026-05-23-6';
 ?>
 <!doctype html>
 <html lang="en">
@@ -169,6 +170,34 @@ $assetVersion = '2026-05-23-5';
       <div class="bin-list" id="category-list"></div>
     </section>
 
+    <section class="update-panel" aria-labelledby="update-title">
+      <div class="section-head">
+        <h2 id="update-title">Updates</h2>
+        <button class="text-button" id="check-update-button" type="button">Check</button>
+      </div>
+
+      <div class="update-grid">
+        <div>
+          <span>Current</span>
+          <strong id="update-current-version">v<?php echo htmlspecialchars(INVENTORY_VERSION, ENT_QUOTES, 'UTF-8'); ?></strong>
+        </div>
+        <div>
+          <span>Latest</span>
+          <strong id="update-latest-version">Not checked</strong>
+        </div>
+      </div>
+
+      <label class="field field-full" for="update-token">
+        <span>Update token</span>
+        <input id="update-token" type="password" autocomplete="off" placeholder="Required to install" />
+      </label>
+
+      <div class="form-actions update-actions">
+        <button class="primary-button hidden" id="install-update-button" type="button" disabled>Update</button>
+        <p class="status" id="update-status" role="status" aria-live="polite">Ready</p>
+      </div>
+    </section>
+
     <section class="search-panel" aria-labelledby="search-title">
       <div class="section-head search-head">
         <h2 id="search-title">Pick list</h2>
@@ -189,6 +218,30 @@ $assetVersion = '2026-05-23-5';
       <p class="empty-state hidden" id="empty-state">No items found.</p>
     </section>
   </main>
+
+  <dialog class="modal" id="quick-bin-dialog" aria-labelledby="quick-bin-title">
+    <form id="quick-bin-form" class="modal-card" autocomplete="off">
+      <div class="section-head">
+        <h2 id="quick-bin-title">Add bin</h2>
+        <button class="text-button" id="quick-bin-cancel" type="button">Cancel</button>
+      </div>
+
+      <label class="field" for="quick-bin-code">
+        <span>Code</span>
+        <input id="quick-bin-code" type="text" inputmode="text" required maxlength="80" placeholder="GAR-S1-L" />
+      </label>
+
+      <label class="field" for="quick-bin-label">
+        <span>Label</span>
+        <input id="quick-bin-label" type="text" inputmode="text" maxlength="160" placeholder="Garage shelf 1 lower" />
+      </label>
+
+      <div class="form-actions">
+        <button class="primary-button" id="save-quick-bin-button" type="submit">Save bin</button>
+        <p class="status" id="quick-bin-status" role="status" aria-live="polite"></p>
+      </div>
+    </form>
+  </dialog>
 
   <template id="item-template">
     <article class="item-card">

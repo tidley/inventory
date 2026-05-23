@@ -7,6 +7,7 @@ Small PHP-hosted, PWA-capable personal inventory tracker with MySQL storage.
 - `index.php` serves the mobile-first UI.
 - `api.php` stores and searches inventory rows in MySQL.
 - `photo.php` serves item photos stored in MySQL.
+- `updater.php` installs GitHub release ZIPs when `UPDATE_TOKEN` is configured.
 - `manifest.json`, `sw.js`, and `icons/` make the app installable on a phone.
 - `styles.css` and `app.js` are static assets.
 - `.env` contains the database credentials and is ignored by git.
@@ -22,6 +23,7 @@ Create `.env` from `.env.example` and set:
 - Database: `example_inventory`
 - User: `example_inventory_user`
 - Host: `localhost`
+- Update token: a long random value used by the in-app updater.
 
 cPanel may add an account prefix to database and user names. If it does, update `.env` to match the exact names shown in cPanel's MySQL Databases page.
 
@@ -32,3 +34,7 @@ For a local check:
 ```sh
 php -S 127.0.0.1:8080
 ```
+
+## Releases
+
+Create a tag like `v0.1.1` after updating `INVENTORY_VERSION` in `version.php`. GitHub Actions builds `build/inventory.zip` and attaches it to the release. The in-app update panel checks that release and installs the ZIP when the configured `UPDATE_TOKEN` is supplied.

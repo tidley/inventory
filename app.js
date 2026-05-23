@@ -1,4 +1,6 @@
 const apiUrl = 'api.php';
+const addBinOptionValue = '__add_bin__';
+const updateTokenStorageKey = 'inventoryUpdateToken';
 const maxPhotoDimension = 1280;
 const photoQuality = 0.78;
 
@@ -7,6 +9,7 @@ const state = {
   meta: {},
   query: '',
   editingId: '',
+  lastLocationCode: '',
   binEditingCode: '',
   pendingDeleteBin: null,
   categoryEditingCode: '',
@@ -47,6 +50,13 @@ const ui = {
   moveBinTarget: document.getElementById('move-bin-target'),
   confirmBinDelete: document.getElementById('confirm-bin-delete'),
   cancelBinDelete: document.getElementById('cancel-bin-delete'),
+  quickBinDialog: document.getElementById('quick-bin-dialog'),
+  quickBinForm: document.getElementById('quick-bin-form'),
+  quickBinCode: document.getElementById('quick-bin-code'),
+  quickBinLabel: document.getElementById('quick-bin-label'),
+  saveQuickBinButton: document.getElementById('save-quick-bin-button'),
+  quickBinStatus: document.getElementById('quick-bin-status'),
+  quickBinCancel: document.getElementById('quick-bin-cancel'),
   categoryForm: document.getElementById('category-form'),
   categoryOriginalCode: document.getElementById('category-original-code'),
   categoryCode: document.getElementById('category-code'),
@@ -71,9 +81,18 @@ const ui = {
   locationCount: document.getElementById('location-count'),
   categoryCount: document.getElementById('category-count'),
   lastUpdated: document.getElementById('last-updated'),
+  updateCurrentVersion: document.getElementById('update-current-version'),
+  updateLatestVersion: document.getElementById('update-latest-version'),
+  updateToken: document.getElementById('update-token'),
+  checkUpdateButton: document.getElementById('check-update-button'),
+  installUpdateButton: document.getElementById('install-update-button'),
+  updateStatus: document.getElementById('update-status'),
   itemTemplate: document.getElementById('item-template'),
   locationDetails: document.getElementById('location-details'),
 };
+
+let latestUpdateInfo = null;
+let updateCheckInFlight = false;
 
 const formatUpdated = new Intl.DateTimeFormat('en-GB', {
   day: '2-digit',
@@ -171,6 +190,22 @@ function binDisplay(bin) {
   return bin.label ? `${bin.code} · ${bin.label}` : bin.code;
 }
 
+function cleanCode(value, maxLength = 80) {
+  return String(value || '').replace(/\s+/g, ' ').trim().slice(0, maxLength).toUpperCase();
+}
+
+function selectLocationCode(code) {
+  const target = cleanCode(code);
+  if (target && bins().some((bin) => bin.code === target)) {
+    ui.locationCode.value = target;
+    state.lastLocationCode = target;
+    return;
+  }
+
+  ui.locationCode.value = '';
+  state.lastLocationCode = '';
+}
+
 function categories() {
   return state.meta.managedCategories || [];
 }
@@ -185,15 +220,14 @@ function categoryDisplay(category) {
 }
 
 function renderBinSelect() {
-  const current = ui.locationCode.value;
+  const current = ui.locationCode.value === addBinOptionValue ? state.lastLocationCode : ui.locationCode.value;
   const options = [new Option('Select bin', '')];
   bins().forEach((bin) => {
     options.push(new Option(binDisplay(bin), bin.code));
   });
+  options.push(new Option('Add bin...', addBinOptionValue));
   ui.locationCode.replaceChildren(...options);
-  if (bins().some((bin) => bin.code === current)) {
-    ui.locationCode.value = current;
-  }
+  selectLocationCode(current);
 }
 
 function renderCategorySelect() {
@@ -351,6 +385,7 @@ function resetForm() {
   state.removePhoto = false;
   ui.form.reset();
   ui.itemId.value = '';
+  selectLocationCode('');
   ui.quantity.value = '1';
   ui.entryTitle.textContent = 'Stock entry';
   ui.saveButton.textContent = 'Save stock';
@@ -371,6 +406,35 @@ function resetBinForm() {
   ui.saveBinButton.textContent = 'Save bin';
   ui.cancelBinEdit.classList.add('hidden');
   setBinStatus('');
+}
+
+function setQuickBinStatus(message, isError = false) {
+  ui.quickBinStatus.textContent = message;
+  ui.quickBinStatus.classList.toggle('error', isError);
+}
+
+function openQuickBinDialog() {
+  ui.quickBinForm.reset();
+  setQuickBinStatus('');
+  ui.saveQuickBinButton.disabled = false;
+
+  if (typeof ui.quickBinDialog.showModal === 'function') {
+    ui.quickBinDialog.showModal();
+  } else {
+    ui.quickBinDialog.setAttribute('open', '');
+  }
+
+  setTimeout(() => ui.quickBinCode.focus(), 0);
+}
+
+function closeQuickBinDialog() {
+  if (ui.quickBinDialog.open && typeof ui.quickBinDialog.close === 'function') {
+    ui.quickBinDialog.close();
+  } else {
+    ui.quickBinDialog.removeAttribute('open');
+  }
+  ui.quickBinForm.reset();
+  setQuickBinStatus('');
 }
 
 function setCategoryStatus(message, isError = false) {
@@ -422,7 +486,7 @@ function editItem(id) {
   ui.itemId.value = item.id;
   ui.sku.value = item.sku || '';
   ui.name.value = item.name || '';
-  ui.locationCode.value = item.locationCode || '';
+  selectLocationCode(item.locationCode || '');
   ui.locationDetail.value = item.locationDetail || '';
   ui.quantity.value = item.quantity || 1;
   ui.category.value = item.category || '';
@@ -452,6 +516,14 @@ function binPayload() {
   };
 }
 
+function quickBinPayload() {
+  return {
+    action: 'createBin',
+    code: ui.quickBinCode.value,
+    label: ui.quickBinLabel.value,
+  };
+}
+
 function categoryPayload() {
   return {
     action: state.categoryEditingCode ? 'updateCategory' : 'createCategory',
@@ -478,6 +550,28 @@ async function saveBin(event) {
     setBinStatus(error.message, true);
   } finally {
     ui.saveBinButton.disabled = false;
+  }
+}
+
+async function saveQuickBin(event) {
+  event.preventDefault();
+  const createdCode = cleanCode(ui.quickBinCode.value);
+  ui.saveQuickBinButton.disabled = true;
+  setQuickBinStatus('Saving...');
+
+  try {
+    const data = await request(apiUrl, {
+      method: 'POST',
+      body: JSON.stringify(quickBinPayload()),
+    });
+    applyPayload(data);
+    selectLocationCode(createdCode);
+    closeQuickBinDialog();
+    setStatus('Bin added');
+  } catch (error) {
+    setQuickBinStatus(error.message, true);
+  } finally {
+    ui.saveQuickBinButton.disabled = false;
   }
 }
 
@@ -679,7 +773,7 @@ async function formPayload() {
     id: state.editingId,
     sku: ui.sku.value,
     name: ui.name.value,
-    locationCode: ui.locationCode.value,
+    locationCode: ui.locationCode.value === addBinOptionValue ? '' : ui.locationCode.value,
     locationDetail: ui.locationDetail.value,
     quantity: ui.quantity.value,
     category: ui.category.value,
@@ -748,6 +842,148 @@ async function deleteItem(id) {
   }
 }
 
+function handleLocationCodeChange() {
+  if (ui.locationCode.value === addBinOptionValue) {
+    selectLocationCode(state.lastLocationCode);
+    openQuickBinDialog();
+    return;
+  }
+
+  state.lastLocationCode = ui.locationCode.value;
+}
+
+function setUpdateStatus(message, isError = false) {
+  ui.updateStatus.textContent = message;
+  ui.updateStatus.classList.toggle('error', isError);
+}
+
+function loadSavedUpdateToken() {
+  try {
+    ui.updateToken.value = localStorage.getItem(updateTokenStorageKey) || '';
+  } catch (error) {
+    ui.updateToken.value = '';
+  }
+}
+
+function saveUpdateToken() {
+  try {
+    const token = ui.updateToken.value.trim();
+    if (token) {
+      localStorage.setItem(updateTokenStorageKey, token);
+    } else {
+      localStorage.removeItem(updateTokenStorageKey);
+    }
+  } catch (error) {
+    // Local storage is optional; the token can still be used for this request.
+  }
+}
+
+function updateButtonForStatus(result) {
+  ui.updateLatestVersion.textContent = result.latestTag || (result.latestVersion ? `v${result.latestVersion}` : 'Unknown');
+
+  if (!result.updateAvailable) {
+    ui.installUpdateButton.classList.add('hidden');
+    ui.installUpdateButton.disabled = true;
+    setUpdateStatus('You are running the latest version.');
+    return;
+  }
+
+  if (!result.zipAvailable) {
+    ui.installUpdateButton.classList.add('hidden');
+    ui.installUpdateButton.disabled = true;
+    setUpdateStatus('PHP ZipArchive is required to install updates.', true);
+    return;
+  }
+
+  if (!result.installEnabled) {
+    ui.installUpdateButton.classList.add('hidden');
+    ui.installUpdateButton.disabled = true;
+    setUpdateStatus('Set UPDATE_TOKEN in .env before installing.', true);
+    return;
+  }
+
+  ui.installUpdateButton.classList.remove('hidden');
+  ui.installUpdateButton.disabled = false;
+  setUpdateStatus(`${result.latestTag || 'A new version'} is available.`);
+}
+
+async function checkForUpdate() {
+  if (updateCheckInFlight) return latestUpdateInfo;
+  updateCheckInFlight = true;
+  ui.checkUpdateButton.disabled = true;
+  ui.installUpdateButton.disabled = true;
+  setUpdateStatus('Checking for updates...');
+
+  try {
+    const result = await request(apiUrl, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'updateStatus' }),
+    });
+    latestUpdateInfo = result;
+    updateButtonForStatus(result);
+    return result;
+  } catch (error) {
+    latestUpdateInfo = null;
+    ui.updateLatestVersion.textContent = 'Unavailable';
+    ui.installUpdateButton.classList.add('hidden');
+    setUpdateStatus(error.message, true);
+    return null;
+  } finally {
+    updateCheckInFlight = false;
+    ui.checkUpdateButton.disabled = false;
+  }
+}
+
+async function installUpdate() {
+  saveUpdateToken();
+  const token = ui.updateToken.value.trim();
+  if (!token) {
+    setUpdateStatus('Update token is required.', true);
+    ui.updateToken.focus();
+    return;
+  }
+
+  let updateInfo = latestUpdateInfo;
+  if (!updateInfo || !updateInfo.updateAvailable) {
+    updateInfo = await checkForUpdate();
+  }
+  if (!updateInfo || !updateInfo.updateAvailable) return;
+
+  const label = updateInfo.latestTag || `v${updateInfo.latestVersion}`;
+  if (!window.confirm(`Install ${label}? Current files will be backed up first.`)) {
+    return;
+  }
+
+  ui.checkUpdateButton.disabled = true;
+  ui.installUpdateButton.disabled = true;
+  ui.installUpdateButton.textContent = 'Updating...';
+  setUpdateStatus('Downloading and installing update...');
+
+  try {
+    const result = await request(apiUrl, {
+      method: 'POST',
+      headers: {
+        'X-Inventory-Update-Token': token,
+      },
+      body: JSON.stringify({ action: 'installUpdate' }),
+    });
+
+    if (result.updated) {
+      setUpdateStatus(`Updated to ${result.tag || label}. Reloading...`);
+      setTimeout(() => window.location.reload(), 1500);
+    } else {
+      setUpdateStatus(result.message || 'Already up to date.');
+      ui.installUpdateButton.classList.add('hidden');
+    }
+  } catch (error) {
+    setUpdateStatus(error.message, true);
+  } finally {
+    ui.checkUpdateButton.disabled = false;
+    ui.installUpdateButton.disabled = false;
+    ui.installUpdateButton.textContent = 'Update';
+  }
+}
+
 async function loadItems() {
   try {
     const data = await request(`${apiUrl}?q=`);
@@ -760,14 +996,23 @@ async function loadItems() {
 
 ui.form.addEventListener('submit', saveItem);
 ui.cancelEdit.addEventListener('click', resetForm);
+ui.locationCode.addEventListener('change', handleLocationCodeChange);
 ui.binForm.addEventListener('submit', saveBin);
 ui.cancelBinEdit.addEventListener('click', resetBinForm);
 ui.confirmBinDelete.addEventListener('click', confirmMoveAndDeleteBin);
 ui.cancelBinDelete.addEventListener('click', hideMovePanel);
+ui.quickBinForm.addEventListener('submit', saveQuickBin);
+ui.quickBinCancel.addEventListener('click', closeQuickBinDialog);
+ui.quickBinDialog.addEventListener('click', (event) => {
+  if (event.target === ui.quickBinDialog) closeQuickBinDialog();
+});
 ui.categoryForm.addEventListener('submit', saveCategory);
 ui.cancelCategoryEdit.addEventListener('click', resetCategoryForm);
 ui.confirmCategoryDelete.addEventListener('click', confirmMoveAndDeleteCategory);
 ui.cancelCategoryDelete.addEventListener('click', hideCategoryMovePanel);
+ui.checkUpdateButton.addEventListener('click', checkForUpdate);
+ui.installUpdateButton.addEventListener('click', installUpdate);
+ui.updateToken.addEventListener('change', saveUpdateToken);
 
 ui.photo.addEventListener('change', () => {
   state.removePhoto = false;
@@ -808,4 +1053,5 @@ if ('serviceWorker' in navigator) {
   });
 }
 
+loadSavedUpdateToken();
 loadItems();

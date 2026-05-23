@@ -7,6 +7,8 @@ deployment:
     - /bin/cp index.php $DEPLOYPATH
     - /bin/cp api.php $DEPLOYPATH
     - /bin/cp lib.php $DEPLOYPATH
+    - /bin/cp version.php $DEPLOYPATH
+    - /bin/cp updater.php $DEPLOYPATH
     - /bin/cp photo.php $DEPLOYPATH
     - /bin/cp test-db.php $DEPLOYPATH
     - /bin/cp styles.css $DEPLOYPATH
