@@ -1,0 +1,10 @@
+.env
+.env.*
+!.env.example
+config.php
+node_modules/
+vendor/
+data/
+*.tmp
+*.log
+.DS_Store
