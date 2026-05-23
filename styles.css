@@ -680,9 +680,10 @@ textarea:focus {
   min-height: 26px;
   display: inline-grid;
   place-items: center;
+  border: 1px solid rgba(122, 215, 170, 0.42);
   border-radius: var(--radius);
-  background: rgba(217, 183, 88, 0.18);
-  color: #f2d987;
+  background: #dff7eb;
+  color: #0b2118;
   font-size: 0.86rem;
   font-weight: 900;
 }
