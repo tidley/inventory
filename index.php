@@ -2,7 +2,7 @@
 require_once __DIR__ . '/lib.php';
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/version.php';
-$assetVersion = INVENTORY_VERSION . '-2026-05-23-22';
+$assetVersion = INVENTORY_VERSION . '-2026-05-23-23';
 inventory_require_auth_page($assetVersion);
 ?>
 <!doctype html>
@@ -76,12 +76,14 @@ inventory_require_auth_page($assetVersion);
           </select>
         </label>
 
-        <label class="field" for="location-code">
-          <span>Bin</span>
+        <div class="field">
+          <label for="location-code"><span>Bin</span></label>
           <select id="location-code" name="locationCode" required>
             <option value="">Select bin</option>
           </select>
-        </label>
+          <button class="small-button" id="scan-bin-tag-button" type="button">Scan tag</button>
+          <p class="status nfc-status" id="nfc-status" role="status" aria-live="polite"></p>
+        </div>
 
         <label class="field" for="location-detail">
           <span>Location</span>
@@ -408,6 +410,7 @@ inventory_require_auth_page($assetVersion);
       <span class="bin-count"></span>
       <div class="item-actions">
         <button class="small-button bin-edit-button" type="button">Edit</button>
+        <button class="small-button bin-tag-button" type="button">Write tag</button>
         <button class="small-button danger-button bin-delete-button" type="button">Delete</button>
       </div>
     </article>

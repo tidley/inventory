@@ -322,6 +322,11 @@ textarea:focus {
   color: var(--warn);
 }
 
+.nfc-status {
+  min-height: 18px;
+  font-size: 0.78rem;
+}
+
 .search-head {
   margin-bottom: 10px;
 }

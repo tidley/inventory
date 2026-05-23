@@ -1,6 +1,8 @@
 const apiUrl = 'api.php';
 const addBinOptionValue = '__add_bin__';
 const addCategoryOptionValue = '__add_category__';
+const nfcBinUrlParam = 'bin';
+const nfcBinTextPrefix = 'inventory-bin:';
 const updateTokenStorageKey = 'inventoryUpdateToken';
 const viewStorageKey = 'inventoryActiveView';
 const queueDbName = 'inventoryMutationQueue';
@@ -27,6 +29,7 @@ const state = {
   pendingDeleteBin: null,
   categoryEditingCode: '',
   pendingDeleteCategory: null,
+  pendingScannedBinCode: '',
   removePhoto: false,
   previewUrl: '',
   toastTimer: null,
@@ -43,6 +46,8 @@ const ui = {
   sku: document.getElementById('sku'),
   name: document.getElementById('name'),
   locationCode: document.getElementById('location-code'),
+  scanBinTagButton: document.getElementById('scan-bin-tag-button'),
+  nfcStatus: document.getElementById('nfc-status'),
   locationDetail: document.getElementById('location-detail'),
   quantity: document.getElementById('quantity'),
   category: document.getElementById('category'),
@@ -136,6 +141,7 @@ const ui = {
 let latestUpdateInfo = null;
 let updateCheckInFlight = false;
 let lastUpdateAutoCheckAt = 0;
+let activeNfcScan = null;
 
 const formatUpdated = new Intl.DateTimeFormat('en-GB', {
   day: '2-digit',
@@ -152,6 +158,11 @@ const formatDetailDate = new Intl.DateTimeFormat('en-GB', {
 function setStatus(message, isError = false) {
   ui.saveStatus.textContent = message;
   ui.saveStatus.classList.toggle('error', isError);
+}
+
+function setNfcStatus(message, isError = false) {
+  ui.nfcStatus.textContent = message;
+  ui.nfcStatus.classList.toggle('error', isError);
 }
 
 function showToast(message, isError = false) {
@@ -467,6 +478,7 @@ function applyPayload(data) {
   state.serverItems = data.items || [];
   state.serverMeta = data.meta || {};
   renderClientState();
+  applyPendingScannedBinCode();
 }
 
 function cloneJson(value, fallback) {
@@ -675,6 +687,29 @@ function cleanCode(value, maxLength = 80) {
   return String(value || '').replace(/\s+/g, ' ').trim().slice(0, maxLength).toUpperCase();
 }
 
+function binCodeFromUrl(value) {
+  try {
+    const url = new URL(value, window.location.href);
+    return cleanCode(url.searchParams.get(nfcBinUrlParam) || '');
+  } catch (error) {
+    return '';
+  }
+}
+
+function binCodeFromNfcText(value) {
+  const text = String(value || '').trim();
+  if (!text) return '';
+
+  if (text.toLowerCase().startsWith(nfcBinTextPrefix)) {
+    return cleanCode(text.slice(nfcBinTextPrefix.length));
+  }
+
+  const urlCode = binCodeFromUrl(text);
+  if (urlCode) return urlCode;
+
+  return cleanCode(text);
+}
+
 function selectLocationCode(code) {
   const target = cleanCode(code);
   if (target && bins().some((bin) => bin.code === target)) {
@@ -685,6 +720,146 @@ function selectLocationCode(code) {
 
   ui.locationCode.value = '';
   state.lastLocationCode = '';
+}
+
+function applyScannedBinCode(code) {
+  const target = cleanCode(code);
+  if (!target) {
+    setNfcStatus('No bin found on tag.', true);
+    return false;
+  }
+
+  if (!binForCode(target)) {
+    setNfcStatus(`Tag bin ${target} is not configured.`, true);
+    showToast(`Tag bin ${target} is not configured`, true);
+    return false;
+  }
+
+  selectLocationCode(target);
+  setActiveView('inventory');
+  setNfcStatus(`Bin set to ${target}.`);
+  showToast(`Bin set to ${target}`);
+  return true;
+}
+
+function applyPendingScannedBinCode() {
+  if (!state.pendingScannedBinCode) return;
+  const target = state.pendingScannedBinCode;
+  state.pendingScannedBinCode = '';
+  applyScannedBinCode(target);
+}
+
+function nfcAvailable() {
+  return 'NDEFReader' in window;
+}
+
+function nfcUnavailableMessage() {
+  return 'NFC is not available in this browser.';
+}
+
+function decodeNfcRecord(record) {
+  if (!record || !record.data) return '';
+  if (typeof record.data === 'string') return record.data;
+
+  try {
+    return new TextDecoder(record.encoding || 'utf-8').decode(record.data);
+  } catch (error) {
+    return '';
+  }
+}
+
+function binCodeFromNfcMessage(message) {
+  const records = message && message.records ? Array.from(message.records) : [];
+  for (const record of records) {
+    const code = binCodeFromNfcText(decodeNfcRecord(record));
+    if (code) return code;
+  }
+  return '';
+}
+
+function nfcUrlForBin(code) {
+  const url = new URL(window.location.href);
+  url.search = '';
+  url.hash = '';
+  url.searchParams.set(nfcBinUrlParam, cleanCode(code));
+  return url.toString();
+}
+
+function nfcWriteMessageForBin(code) {
+  return {
+    records: [
+      {
+        recordType: 'url',
+        data: nfcUrlForBin(code),
+      },
+    ],
+  };
+}
+
+async function scanBinTag() {
+  if (!nfcAvailable()) {
+    setNfcStatus(nfcUnavailableMessage(), true);
+    showToast(nfcUnavailableMessage(), true);
+    return;
+  }
+
+  if (activeNfcScan) {
+    activeNfcScan.abort();
+  }
+
+  const controller = new AbortController();
+  const reader = new NDEFReader();
+  activeNfcScan = controller;
+  setNfcStatus('Ready to scan tag.');
+
+  reader.addEventListener('readingerror', () => {
+    setNfcStatus('Could not read NFC tag.', true);
+  });
+
+  reader.addEventListener('reading', (event) => {
+    const code = binCodeFromNfcMessage(event.message);
+    if (!code) {
+      setNfcStatus('No bin found on tag.', true);
+      return;
+    }
+
+    if (applyScannedBinCode(code) && activeNfcScan === controller) {
+      controller.abort();
+      activeNfcScan = null;
+    }
+  });
+
+  try {
+    await reader.scan({ signal: controller.signal });
+  } catch (error) {
+    if (error.name === 'AbortError') return;
+    activeNfcScan = null;
+    setNfcStatus(error.message || 'NFC scan failed.', true);
+    showToast(error.message || 'NFC scan failed', true);
+  }
+}
+
+async function writeBinTag(code) {
+  const target = cleanCode(code);
+  if (!target || !binForCode(target)) {
+    showToast('Select a configured bin first', true);
+    return;
+  }
+
+  if (!nfcAvailable()) {
+    showToast(nfcUnavailableMessage(), true);
+    return;
+  }
+
+  const writer = new NDEFReader();
+  showToast(`Tap tag for ${target}`);
+
+  try {
+    await writer.write(nfcWriteMessageForBin(target));
+    showToast(`${target} tag written`);
+  } catch (error) {
+    showToast(error.message || 'NFC write failed', true);
+  }
 }
 
 function categories() {
@@ -921,6 +1096,7 @@ function renderBins() {
     fragment.querySelector('.bin-label').textContent = bin.label || '';
     fragment.querySelector('.bin-count').textContent = `${bin.itemCount || 0} ${bin.itemCount === 1 ? 'item' : 'items'}`;
     fragment.querySelector('.bin-edit-button').addEventListener('click', () => editBin(bin.code));
+    fragment.querySelector('.bin-tag-button').addEventListener('click', () => writeBinTag(bin.code));
     fragment.querySelector('.bin-delete-button').addEventListener('click', () => deleteBin(bin.code));
     ui.binList.appendChild(fragment);
   });
@@ -1713,6 +1889,7 @@ async function initialiseQueue() {
 ui.form.addEventListener('submit', saveItem);
 ui.cancelEdit.addEventListener('click', resetForm);
 ui.locationCode.addEventListener('change', handleLocationCodeChange);
+ui.scanBinTagButton.addEventListener('click', scanBinTag);
 ui.category.addEventListener('change', handleCategoryChange);
 ui.binForm.addEventListener('submit', saveBin);
 ui.toggleBinForm.addEventListener('click', startAddBin);
@@ -1805,6 +1982,7 @@ if ('serviceWorker' in navigator) {
   });
 }
 
+state.pendingScannedBinCode = binCodeFromUrl(window.location.href);
 loadSavedUpdateToken();
 loadSavedView();
 initialiseQueue();
