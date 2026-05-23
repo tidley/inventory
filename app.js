@@ -6,6 +6,7 @@ const viewStorageKey = 'inventoryActiveView';
 const queueDbName = 'inventoryMutationQueue';
 const queueStoreName = 'mutations';
 const queueRequestTimeoutMs = 12000;
+const updateAutoCheckMinIntervalMs = 60000;
 const maxPhotoDimension = 1280;
 const photoQuality = 0.78;
 
@@ -137,6 +138,7 @@ const ui = {
 
 let latestUpdateInfo = null;
 let updateCheckInFlight = false;
+let lastUpdateAutoCheckAt = 0;
 
 const formatUpdated = new Intl.DateTimeFormat('en-GB', {
   day: '2-digit',
@@ -186,6 +188,18 @@ function setActiveView(view) {
   } catch (error) {
     // View persistence is optional.
   }
+
+  autoCheckUpdatesForView(view);
+}
+
+function autoCheckUpdatesForView(view) {
+  if (view !== 'settings' || updateCheckInFlight) return;
+
+  const now = Date.now();
+  if (now - lastUpdateAutoCheckAt < updateAutoCheckMinIntervalMs) return;
+
+  lastUpdateAutoCheckAt = now;
+  checkForUpdate();
 }
 
 function loadSavedView() {
