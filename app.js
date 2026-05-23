@@ -51,7 +51,6 @@ const ui = {
   removePhoto: document.getElementById('remove-photo'),
   notes: document.getElementById('notes'),
   entryTitle: document.getElementById('entry-title'),
-  toggleEntryForm: document.getElementById('toggle-entry-form'),
   saveButton: document.getElementById('save-button'),
   saveStatus: document.getElementById('save-status'),
   cancelEdit: document.getElementById('cancel-edit'),
@@ -947,8 +946,7 @@ function resetForm() {
   ui.quantity.value = '1';
   ui.entryTitle.textContent = 'Stock entry';
   ui.saveButton.textContent = 'Save stock';
-  ui.form.classList.add('hidden');
-  ui.toggleEntryForm.classList.remove('hidden');
+  ui.form.classList.remove('hidden');
   ui.cancelEdit.classList.add('hidden');
   hidePhotoPreview();
   setStatus('');
@@ -956,7 +954,6 @@ function resetForm() {
 
 function openEntryForm() {
   ui.form.classList.remove('hidden');
-  ui.toggleEntryForm.classList.add('hidden');
   ui.cancelEdit.classList.remove('hidden');
 }
 
@@ -1485,7 +1482,7 @@ async function saveItem(event) {
     setStatus('Saving locally...');
     await queueMutation(payload);
     resetForm();
-    setActiveView('search');
+    setActiveView('inventory');
     showToast('Stock queued');
   } catch (error) {
     setStatus(error.message, true);
@@ -1542,12 +1539,6 @@ function handleCategoryChange() {
   }
 
   state.lastCategoryCode = ui.category.value;
-}
-
-function startAddStock() {
-  resetForm();
-  openEntryForm();
-  ui.name.focus();
 }
 
 function startAddBin() {
@@ -1712,7 +1703,6 @@ async function initialiseQueue() {
 }
 
 ui.form.addEventListener('submit', saveItem);
-ui.toggleEntryForm.addEventListener('click', startAddStock);
 ui.cancelEdit.addEventListener('click', resetForm);
 ui.locationCode.addEventListener('change', handleLocationCodeChange);
 ui.category.addEventListener('change', handleCategoryChange);

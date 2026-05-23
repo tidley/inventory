@@ -2,7 +2,7 @@
 require_once __DIR__ . '/lib.php';
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/version.php';
-$assetVersion = INVENTORY_VERSION . '-2026-05-23-15';
+$assetVersion = INVENTORY_VERSION . '-2026-05-23-16';
 inventory_require_auth_page($assetVersion);
 ?>
 <!doctype html>
@@ -48,13 +48,10 @@ inventory_require_auth_page($assetVersion);
     <section class="entry-panel view-section" data-view="inventory" aria-labelledby="entry-title">
       <div class="section-head">
         <h2 id="entry-title">Stock entry</h2>
-        <div class="section-actions">
-          <button class="primary-button compact-primary" id="toggle-entry-form" type="button">Add stock</button>
-          <button class="text-button hidden" id="cancel-edit" type="button">Cancel</button>
-        </div>
+        <button class="text-button hidden" id="cancel-edit" type="button">Cancel</button>
       </div>
 
-      <form id="item-form" class="hidden" autocomplete="off">
+      <form id="item-form" autocomplete="off">
         <input type="hidden" id="item-id" name="id" />
 
         <label class="field" for="sku">
