@@ -124,11 +124,6 @@ async function signInWithPasskey() {
     authStatus('Passkeys are not available in this browser.', true);
     return;
   }
-  if (!username) {
-    authStatus('Username is required.', true);
-    usernameInput.focus();
-    return;
-  }
 
   const button = document.getElementById('auth-passkey-login');
   button.disabled = true;

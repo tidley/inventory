@@ -303,6 +303,9 @@ function inventory_passkey_login_options($input) {
 
   $config = inventory_auth_config();
   $username = trim((string) inventory_auth_array_value($input, 'username', ''));
+  if ($username === '') {
+    $username = $config['username'];
+  }
   if (!hash_equals($config['username'], $username)) {
     json_response(array('error' => 'Username is incorrect'), 401);
   }
