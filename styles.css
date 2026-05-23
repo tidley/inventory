@@ -723,10 +723,10 @@ textarea:focus {
   min-height: 26px;
   display: inline-grid;
   place-items: center;
-  border: 1px solid #1f6a58;
+  border: 1px solid #ffffff;
   border-radius: var(--radius);
-  background: var(--positive-bg);
-  color: var(--positive-text);
+  background: #ffffff;
+  color: #000000;
   font-size: 0.86rem;
   font-weight: 900;
 }

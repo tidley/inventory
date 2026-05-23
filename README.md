@@ -44,4 +44,4 @@ php -S 127.0.0.1:8080
 
 ## Releases
 
-Create a tag like `v0.4.1` after updating `INVENTORY_VERSION` in `version.php`. GitHub Actions builds `build/inventory.zip` and attaches it to the release. The in-app update panel checks the repository configured by `INVENTORY_UPDATE_REPO` and installs the ZIP when the configured `UPDATE_TOKEN` is supplied. For a private GitHub repository, set `INVENTORY_GITHUB_TOKEN` in `.env` to a token that can read repository contents/releases.
+Create a tag like `v0.4.2` after updating `INVENTORY_VERSION` in `version.php`. GitHub Actions builds `build/inventory.zip` and attaches it to the release. The in-app update panel checks the repository configured by `INVENTORY_UPDATE_REPO` and installs the ZIP when the configured `UPDATE_TOKEN` is supplied. For a private GitHub repository, set `INVENTORY_GITHUB_TOKEN` in `.env` to a token that can read repository contents/releases.
