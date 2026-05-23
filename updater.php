@@ -1,6 +1,7 @@
 <?php
 
 require_once __DIR__ . '/version.php';
+require_once __DIR__ . '/lib.php';
 
 if (!defined('INVENTORY_UPDATE_REPO')) {
   define('INVENTORY_UPDATE_REPO', 'github-owner/inventory');
@@ -152,11 +153,11 @@ class InventoryUpdater {
 
   private static function getLatestRelease() {
     $url = sprintf(self::RELEASE_API, INVENTORY_UPDATE_REPO);
-    $response = self::httpGet($url, array(
+    $response = self::httpGet($url, self::githubHeaders(array(
       'Accept: application/vnd.github+json',
       'User-Agent: Inventory/' . INVENTORY_VERSION,
       'X-GitHub-Api-Version: 2022-11-28',
-    ));
+    )));
 
     $release = json_decode($response, true);
     if (!is_array($release)) {
@@ -247,7 +248,7 @@ class InventoryUpdater {
         CURLOPT_CONNECTTIMEOUT => 10,
         CURLOPT_LOW_SPEED_LIMIT => 1024,
         CURLOPT_LOW_SPEED_TIME => 20,
-        CURLOPT_HTTPHEADER => array('User-Agent: Inventory/' . INVENTORY_VERSION),
+        CURLOPT_HTTPHEADER => self::githubHeaders(array('User-Agent: Inventory/' . INVENTORY_VERSION)),
       ));
       $ok = curl_exec($ch);
       $error = curl_error($ch);
@@ -263,10 +264,44 @@ class InventoryUpdater {
     }
 
     fclose($fp);
-    $body = self::httpGet($url, array('User-Agent: Inventory/' . INVENTORY_VERSION));
+    $body = self::httpGet($url, self::githubHeaders(array('User-Agent: Inventory/' . INVENTORY_VERSION)));
     if (file_put_contents($path, $body) === false) {
       throw new Exception('Could not write update package.');
     }
+  }
+
+  private static function githubHeaders($headers) {
+    $token = self::githubToken();
+    if ($token !== '') {
+      $headers[] = 'Authorization: Bearer ' . $token;
+    }
+    return $headers;
+  }
+
+  private static function githubToken() {
+    $token = getenv('INVENTORY_GITHUB_TOKEN');
+    if ($token !== false && trim($token) !== '') {
+      return trim($token);
+    }
+
+    $token = getenv('GITHUB_TOKEN');
+    if ($token !== false && trim($token) !== '') {
+      return trim($token);
+    }
+
+    try {
+      $env = inventory_env();
+      if (isset($env['INVENTORY_GITHUB_TOKEN']) && trim($env['INVENTORY_GITHUB_TOKEN']) !== '') {
+        return trim($env['INVENTORY_GITHUB_TOKEN']);
+      }
+      if (isset($env['GITHUB_TOKEN']) && trim($env['GITHUB_TOKEN']) !== '') {
+        return trim($env['GITHUB_TOKEN']);
+      }
+    } catch (Exception $error) {
+      return '';
+    }
+
+    return '';
   }
 
   private static function extractZip($zipPath, $extractDir) {
