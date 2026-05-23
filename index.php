@@ -1,5 +1,5 @@
 <?php
-$assetVersion = '2026-05-23-3';
+$assetVersion = '2026-05-23-4';
 ?>
 <!doctype html>
 <html lang="en">
@@ -53,7 +53,9 @@ $assetVersion = '2026-05-23-3';
 
         <label class="field" for="location-code">
           <span>Bin</span>
-          <input id="location-code" name="locationCode" type="text" required maxlength="80" list="locations" placeholder="GAR-S1-L" />
+          <select id="location-code" name="locationCode" required>
+            <option value="">Select bin</option>
+          </select>
         </label>
 
         <label class="field" for="location-detail">
@@ -92,6 +94,42 @@ $assetVersion = '2026-05-23-3';
       </form>
     </section>
 
+    <section class="bin-panel" aria-labelledby="bin-title">
+      <div class="section-head">
+        <h2 id="bin-title">Bins</h2>
+        <button class="text-button hidden" id="cancel-bin-edit" type="button">Cancel</button>
+      </div>
+
+      <form id="bin-form" class="compact-form" autocomplete="off">
+        <input type="hidden" id="bin-original-code" />
+        <label class="field" for="bin-code">
+          <span>Code</span>
+          <input id="bin-code" type="text" inputmode="text" required maxlength="80" placeholder="GAR-S1-L" />
+        </label>
+        <label class="field" for="bin-label">
+          <span>Label</span>
+          <input id="bin-label" type="text" inputmode="text" maxlength="160" placeholder="Garage shelf 1 lower" />
+        </label>
+        <div class="form-actions">
+          <button class="primary-button" id="save-bin-button" type="submit">Save bin</button>
+          <p class="status" id="bin-status" role="status" aria-live="polite"></p>
+        </div>
+      </form>
+
+      <div class="move-panel hidden" id="bin-move-panel">
+        <label class="field" for="move-bin-target">
+          <span id="move-bin-label">Move items to</span>
+          <select id="move-bin-target"></select>
+        </label>
+        <div class="item-actions">
+          <button class="small-button danger-button" id="confirm-bin-delete" type="button">Move and delete</button>
+          <button class="small-button" id="cancel-bin-delete" type="button">Cancel</button>
+        </div>
+      </div>
+
+      <div class="bin-list" id="bin-list"></div>
+    </section>
+
     <section class="search-panel" aria-labelledby="search-title">
       <div class="section-head search-head">
         <h2 id="search-title">Pick list</h2>
@@ -113,7 +151,6 @@ $assetVersion = '2026-05-23-3';
     </section>
   </main>
 
-  <datalist id="locations"></datalist>
   <datalist id="categories"></datalist>
 
   <template id="item-template">
@@ -137,6 +174,20 @@ $assetVersion = '2026-05-23-3';
         <button class="small-button plus-button" type="button">+1</button>
         <button class="small-button edit-button" type="button">Edit</button>
         <button class="small-button danger-button delete-button" type="button">Delete</button>
+      </div>
+    </article>
+  </template>
+
+  <template id="bin-template">
+    <article class="bin-row">
+      <div>
+        <h3 class="bin-code"></h3>
+        <p class="bin-label"></p>
+      </div>
+      <span class="bin-count"></span>
+      <div class="item-actions">
+        <button class="small-button bin-edit-button" type="button">Edit</button>
+        <button class="small-button danger-button bin-delete-button" type="button">Delete</button>
       </div>
     </article>
   </template>

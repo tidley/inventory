@@ -7,6 +7,8 @@ const state = {
   meta: {},
   query: '',
   editingId: '',
+  binEditingCode: '',
+  pendingDeleteBin: null,
   removePhoto: false,
   previewUrl: '',
 };
@@ -29,6 +31,20 @@ const ui = {
   saveButton: document.getElementById('save-button'),
   saveStatus: document.getElementById('save-status'),
   cancelEdit: document.getElementById('cancel-edit'),
+  binForm: document.getElementById('bin-form'),
+  binOriginalCode: document.getElementById('bin-original-code'),
+  binCode: document.getElementById('bin-code'),
+  binLabel: document.getElementById('bin-label'),
+  saveBinButton: document.getElementById('save-bin-button'),
+  binStatus: document.getElementById('bin-status'),
+  cancelBinEdit: document.getElementById('cancel-bin-edit'),
+  binList: document.getElementById('bin-list'),
+  binTemplate: document.getElementById('bin-template'),
+  binMovePanel: document.getElementById('bin-move-panel'),
+  moveBinLabel: document.getElementById('move-bin-label'),
+  moveBinTarget: document.getElementById('move-bin-target'),
+  confirmBinDelete: document.getElementById('confirm-bin-delete'),
+  cancelBinDelete: document.getElementById('cancel-bin-delete'),
   search: document.getElementById('search'),
   clearSearch: document.getElementById('clear-search'),
   results: document.getElementById('results'),
@@ -39,7 +55,6 @@ const ui = {
   locationCount: document.getElementById('location-count'),
   lastUpdated: document.getElementById('last-updated'),
   itemTemplate: document.getElementById('item-template'),
-  locations: document.getElementById('locations'),
   locationDetails: document.getElementById('location-details'),
   categories: document.getElementById('categories'),
 };
@@ -79,7 +94,9 @@ async function request(path, options = {}) {
     }
   }
   if (!response.ok) {
-    throw new Error(data.error || `Server returned ${response.status}`);
+    const error = new Error(data.error || `Server returned ${response.status}`);
+    error.data = data;
+    throw error;
   }
   return data;
 }
@@ -88,6 +105,8 @@ function applyPayload(data) {
   state.items = data.items || [];
   state.meta = data.meta || {};
   updateDatalists();
+  renderBinSelect();
+  renderBins();
   renderItems();
 }
 
@@ -118,9 +137,43 @@ function optionsFrom(values = []) {
 }
 
 function updateDatalists() {
-  ui.locations.replaceChildren(...optionsFrom(state.meta.locations || []));
   ui.locationDetails.replaceChildren(...optionsFrom(state.meta.locationDetails || []));
   ui.categories.replaceChildren(...optionsFrom(state.meta.categories || []));
+}
+
+function bins() {
+  return state.meta.bins || [];
+}
+
+function binForCode(code) {
+  return bins().find((bin) => bin.code === code);
+}
+
+function binDisplay(bin) {
+  if (!bin) return '';
+  return bin.label ? `${bin.code} · ${bin.label}` : bin.code;
+}
+
+function renderBinSelect() {
+  const current = ui.locationCode.value;
+  const options = [new Option('Select bin', '')];
+  bins().forEach((bin) => {
+    options.push(new Option(binDisplay(bin), bin.code));
+  });
+  ui.locationCode.replaceChildren(...options);
+  if (bins().some((bin) => bin.code === current)) {
+    ui.locationCode.value = current;
+  }
+}
+
+function renderMoveTargets(excludeCode) {
+  const options = [new Option('Select bin', '')];
+  bins()
+    .filter((bin) => bin.code !== excludeCode)
+    .forEach((bin) => {
+      options.push(new Option(binDisplay(bin), bin.code));
+    });
+  ui.moveBinTarget.replaceChildren(...options);
 }
 
 function displayTime(value) {
@@ -149,7 +202,11 @@ function renderItems() {
     const code = fragment.querySelector('.item-code');
     const category = fragment.querySelector('.category');
     const notes = fragment.querySelector('.notes');
-    const location = [item.locationCode, item.locationDetail].filter(Boolean).join(' · ');
+    const bin = binForCode(item.locationCode);
+    const locationParts = [item.locationCode];
+    if (bin && bin.label && bin.label !== item.locationCode) locationParts.push(bin.label);
+    if (item.locationDetail) locationParts.push(item.locationDetail);
+    const location = locationParts.filter(Boolean).join(' · ');
 
     card.dataset.id = item.id;
     fragment.querySelector('.item-name').textContent = item.name;
@@ -189,6 +246,20 @@ function renderItems() {
   updateStats(items);
 }
 
+function renderBins() {
+  ui.binList.replaceChildren();
+
+  bins().forEach((bin) => {
+    const fragment = ui.binTemplate.content.cloneNode(true);
+    fragment.querySelector('.bin-code').textContent = bin.code;
+    fragment.querySelector('.bin-label').textContent = bin.label || '';
+    fragment.querySelector('.bin-count').textContent = `${bin.itemCount || 0} ${bin.itemCount === 1 ? 'item' : 'items'}`;
+    fragment.querySelector('.bin-edit-button').addEventListener('click', () => editBin(bin.code));
+    fragment.querySelector('.bin-delete-button').addEventListener('click', () => deleteBin(bin.code));
+    ui.binList.appendChild(fragment);
+  });
+}
+
 function revokePreviewUrl() {
   if (state.previewUrl) {
     URL.revokeObjectURL(state.previewUrl);
@@ -220,6 +291,33 @@ function resetForm() {
   setStatus('');
 }
 
+function setBinStatus(message, isError = false) {
+  ui.binStatus.textContent = message;
+  ui.binStatus.classList.toggle('error', isError);
+}
+
+function resetBinForm() {
+  state.binEditingCode = '';
+  ui.binForm.reset();
+  ui.binOriginalCode.value = '';
+  ui.saveBinButton.textContent = 'Save bin';
+  ui.cancelBinEdit.classList.add('hidden');
+  setBinStatus('');
+}
+
+function editBin(code) {
+  const bin = binForCode(code);
+  if (!bin) return;
+  state.binEditingCode = bin.code;
+  ui.binOriginalCode.value = bin.code;
+  ui.binCode.value = bin.code;
+  ui.binLabel.value = bin.label || '';
+  ui.saveBinButton.textContent = 'Update bin';
+  ui.cancelBinEdit.classList.remove('hidden');
+  setBinStatus('');
+  ui.binCode.focus();
+}
+
 function editItem(id) {
   const item = state.items.find((candidate) => Number(candidate.id) === Number(id));
   if (!item) return;
@@ -248,6 +346,97 @@ function editItem(id) {
 
   document.querySelector('.entry-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
   ui.name.focus({ preventScroll: true });
+}
+
+function binPayload() {
+  return {
+    action: state.binEditingCode ? 'updateBin' : 'createBin',
+    originalCode: state.binEditingCode,
+    code: ui.binCode.value,
+    label: ui.binLabel.value,
+  };
+}
+
+async function saveBin(event) {
+  event.preventDefault();
+  ui.saveBinButton.disabled = true;
+  setBinStatus('Saving...');
+
+  try {
+    const data = await request(apiUrl, {
+      method: 'POST',
+      body: JSON.stringify(binPayload()),
+    });
+    resetBinForm();
+    applyPayload(data);
+    setBinStatus('Saved');
+  } catch (error) {
+    setBinStatus(error.message, true);
+  } finally {
+    ui.saveBinButton.disabled = false;
+  }
+}
+
+function showMovePanel(code, itemCount) {
+  state.pendingDeleteBin = { code, itemCount };
+  ui.moveBinLabel.textContent = `Move ${itemCount} ${itemCount === 1 ? 'item' : 'items'} from ${code} to`;
+  renderMoveTargets(code);
+  ui.binMovePanel.classList.remove('hidden');
+  ui.moveBinTarget.focus();
+}
+
+function hideMovePanel() {
+  state.pendingDeleteBin = null;
+  ui.binMovePanel.classList.add('hidden');
+  ui.moveBinTarget.replaceChildren();
+}
+
+async function deleteBin(code) {
+  if (!window.confirm(`Delete bin "${code}"?`)) return;
+
+  try {
+    const data = await request(apiUrl, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'deleteBin', code }),
+    });
+    hideMovePanel();
+    applyPayload(data);
+    setBinStatus('Deleted');
+  } catch (error) {
+    if (error.data && error.data.requiresMove) {
+      state.meta = error.data.meta || state.meta;
+      renderMoveTargets(code);
+      showMovePanel(error.data.binCode || code, error.data.itemCount || 0);
+      setBinStatus(error.message, true);
+      return;
+    }
+    setBinStatus(error.message, true);
+  }
+}
+
+async function confirmMoveAndDeleteBin() {
+  if (!state.pendingDeleteBin) return;
+  const moveTo = ui.moveBinTarget.value;
+  if (!moveTo) {
+    setBinStatus('Choose another bin first', true);
+    return;
+  }
+
+  try {
+    const data = await request(apiUrl, {
+      method: 'POST',
+      body: JSON.stringify({
+        action: 'deleteBin',
+        code: state.pendingDeleteBin.code,
+        moveTo,
+      }),
+    });
+    hideMovePanel();
+    applyPayload(data);
+    setBinStatus('Moved and deleted');
+  } catch (error) {
+    setBinStatus(error.message, true);
+  }
 }
 
 function blobToDataUrl(blob) {
@@ -385,6 +574,10 @@ async function loadItems() {
 
 ui.form.addEventListener('submit', saveItem);
 ui.cancelEdit.addEventListener('click', resetForm);
+ui.binForm.addEventListener('submit', saveBin);
+ui.cancelBinEdit.addEventListener('click', resetBinForm);
+ui.confirmBinDelete.addEventListener('click', confirmMoveAndDeleteBin);
+ui.cancelBinDelete.addEventListener('click', hideMovePanel);
 
 ui.photo.addEventListener('change', () => {
   state.removePhoto = false;

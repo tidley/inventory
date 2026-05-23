@@ -89,6 +89,10 @@ function item_input($data) {
     json_response(array('error' => 'Bin/location is required'), 422);
   }
 
+  if (!bin_exists($locationCode)) {
+    json_response(array('error' => 'Choose a configured bin'), 422);
+  }
+
   return array(
     'sku' => $sku,
     'name' => $name,
@@ -98,6 +102,26 @@ function item_input($data) {
     'category' => $category,
     'notes' => $notes,
   );
+}
+
+function bin_input($data, $codeKey) {
+  $code = strtoupper(clean_text(array_value($data, $codeKey, ''), 80));
+  $label = clean_text(array_value($data, 'label', ''), 160);
+
+  if ($code === '') {
+    json_response(array('error' => 'Bin code is required'), 422);
+  }
+
+  return array(
+    'code' => $code,
+    'label' => $label,
+  );
+}
+
+function bin_exists($code) {
+  $stmt = inventory_db()->prepare('SELECT code FROM inventory_bins WHERE code = :code');
+  $stmt->execute(array(':code' => $code));
+  return (bool) $stmt->fetch();
 }
 
 function photo_input($data) {
@@ -196,7 +220,7 @@ function stats() {
     "SELECT
       COUNT(*) AS item_count,
       COALESCE(SUM(quantity), 0) AS unit_count,
-      COUNT(DISTINCT location_code) AS location_count,
+      (SELECT COUNT(*) FROM inventory_bins) AS location_count,
       MAX(updated_at) AS last_updated
     FROM inventory_items"
   )->fetch();
@@ -207,6 +231,29 @@ function stats() {
     'locationCount' => (int) array_value($row, 'location_count', 0),
     'lastUpdated' => iso_time(array_value($row, 'last_updated', null)),
   );
+}
+
+function list_bins() {
+  $stmt = inventory_db()->query(
+    "SELECT
+      b.code,
+      b.label,
+      COUNT(i.id) AS item_count
+    FROM inventory_bins b
+    LEFT JOIN inventory_items i ON i.location_code = b.code
+    GROUP BY b.id, b.code, b.label
+    ORDER BY b.code"
+  );
+
+  $bins = array();
+  foreach ($stmt->fetchAll() as $row) {
+    $bins[] = array(
+      'code' => (string) $row['code'],
+      'label' => (string) $row['label'],
+      'itemCount' => (int) $row['item_count'],
+    );
+  }
+  return $bins;
 }
 
 function distinct_values($column) {
@@ -224,8 +271,10 @@ function distinct_values($column) {
 }
 
 function meta() {
+  $bins = list_bins();
   return array(
     'stats' => stats(),
+    'bins' => $bins,
     'locations' => distinct_values('location_code'),
     'locationDetails' => distinct_values('location_detail'),
     'categories' => distinct_values('category'),
@@ -255,6 +304,111 @@ try {
 
   $input = read_json_input();
   $action = clean_text(array_value($input, 'action', ''), 20);
+
+  if ($action === 'createBin') {
+    $bin = bin_input($input, 'code');
+    if (bin_exists($bin['code'])) {
+      json_response(array('error' => 'Bin already exists'), 422);
+    }
+
+    $stmt = inventory_db()->prepare('INSERT INTO inventory_bins (code, label) VALUES (:code, :label)');
+    bind_and_execute($stmt, array(
+      ':code' => $bin['code'],
+      ':label' => $bin['label'],
+    ));
+
+    send_inventory();
+  }
+
+  if ($action === 'updateBin') {
+    $originalCode = strtoupper(clean_text(array_value($input, 'originalCode', ''), 80));
+    $bin = bin_input($input, 'code');
+
+    if ($originalCode === '' || !bin_exists($originalCode)) {
+      json_response(array('error' => 'Bin not found'), 404);
+    }
+
+    if ($originalCode !== $bin['code'] && bin_exists($bin['code'])) {
+      json_response(array('error' => 'Bin already exists'), 422);
+    }
+
+    $db = inventory_db();
+    $db->beginTransaction();
+    try {
+      $stmt = $db->prepare('UPDATE inventory_bins SET code = :code, label = :label WHERE code = :original_code');
+      bind_and_execute($stmt, array(
+        ':code' => $bin['code'],
+        ':label' => $bin['label'],
+        ':original_code' => $originalCode,
+      ));
+
+      if ($originalCode !== $bin['code']) {
+        $stmt = $db->prepare('UPDATE inventory_items SET location_code = :code WHERE location_code = :original_code');
+        bind_and_execute($stmt, array(
+          ':code' => $bin['code'],
+          ':original_code' => $originalCode,
+        ));
+      }
+
+      $db->commit();
+    } catch (Exception $error) {
+      $db->rollBack();
+      json_response(array('error' => 'Bin could not be updated'), 500);
+    }
+
+    send_inventory();
+  }
+
+  if ($action === 'deleteBin') {
+    $code = strtoupper(clean_text(array_value($input, 'code', ''), 80));
+    $moveTo = strtoupper(clean_text(array_value($input, 'moveTo', ''), 80));
+
+    if ($code === '' || !bin_exists($code)) {
+      json_response(array('error' => 'Bin not found'), 404);
+    }
+
+    $stmt = inventory_db()->prepare('SELECT COUNT(*) AS item_count FROM inventory_items WHERE location_code = :code');
+    $stmt->execute(array(':code' => $code));
+    $row = $stmt->fetch();
+    $itemCount = (int) array_value($row, 'item_count', 0);
+
+    if ($itemCount > 0 && $moveTo === '') {
+      json_response(array(
+        'error' => 'Move items before deleting this bin',
+        'requiresMove' => true,
+        'binCode' => $code,
+        'itemCount' => $itemCount,
+        'meta' => meta(),
+      ), 409);
+    }
+
+    if ($itemCount > 0) {
+      if ($moveTo === $code || !bin_exists($moveTo)) {
+        json_response(array('error' => 'Choose another bin to move items into'), 422);
+      }
+    }
+
+    $db = inventory_db();
+    $db->beginTransaction();
+    try {
+      if ($itemCount > 0) {
+        $stmt = $db->prepare('UPDATE inventory_items SET location_code = :move_to WHERE location_code = :code');
+        bind_and_execute($stmt, array(
+          ':move_to' => $moveTo,
+          ':code' => $code,
+        ));
+      }
+
+      $stmt = $db->prepare('DELETE FROM inventory_bins WHERE code = :code');
+      bind_and_execute($stmt, array(':code' => $code));
+      $db->commit();
+    } catch (Exception $error) {
+      $db->rollBack();
+      json_response(array('error' => 'Bin could not be deleted'), 500);
+    }
+
+    send_inventory();
+  }
 
   if ($action === 'create') {
     $item = item_input($input);
