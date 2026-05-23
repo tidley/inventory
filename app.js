@@ -870,7 +870,7 @@ function renderItems() {
       notes.classList.remove('hidden');
     }
 
-    const actionButtons = Array.from(fragment.querySelectorAll('.item-actions button'));
+    const actionButtons = Array.from(fragment.querySelectorAll('.item-actions button, .quantity-controls button'));
     if (item.pending) {
       actionButtons.forEach((button) => {
         button.disabled = true;

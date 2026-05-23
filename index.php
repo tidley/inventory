@@ -2,7 +2,7 @@
 require_once __DIR__ . '/lib.php';
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/version.php';
-$assetVersion = INVENTORY_VERSION . '-2026-05-23-21';
+$assetVersion = INVENTORY_VERSION . '-2026-05-23-22';
 inventory_require_auth_page($assetVersion);
 ?>
 <!doctype html>
@@ -371,12 +371,14 @@ inventory_require_auth_page($assetVersion);
             <span class="updated"></span>
           </div>
         </div>
-        <span class="quantity"></span>
+        <div class="quantity-controls">
+          <span class="quantity"></span>
+          <button class="small-button plus-button" type="button">+1</button>
+          <button class="small-button minus-button" type="button">-1</button>
+        </div>
       </div>
       <p class="notes hidden"></p>
       <div class="item-actions">
-        <button class="small-button minus-button" type="button">-1</button>
-        <button class="small-button plus-button" type="button">+1</button>
         <button class="small-button edit-button" type="button">Edit</button>
         <button class="small-button danger-button delete-button" type="button">Delete</button>
       </div>
