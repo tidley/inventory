@@ -2,7 +2,7 @@
 require_once __DIR__ . '/lib.php';
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/version.php';
-$assetVersion = INVENTORY_VERSION . '-2026-05-23-13';
+$assetVersion = INVENTORY_VERSION . '-2026-05-23-14';
 inventory_require_auth_page($assetVersion);
 ?>
 <!doctype html>
@@ -34,6 +34,7 @@ inventory_require_auth_page($assetVersion);
         <span><strong id="unit-count">0</strong> units</span>
         <span><strong id="location-count">0</strong> bins</span>
         <span><strong id="category-count">0</strong> categories</span>
+        <span class="hidden" id="queue-stat"><strong id="queue-count">0</strong> queued</span>
       </div>
     </header>
 

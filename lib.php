@@ -179,6 +179,7 @@ function inventory_ensure_schema() {
   inventory_db()->exec(
     "CREATE TABLE IF NOT EXISTS inventory_items (
       id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+      client_mutation_id VARCHAR(80) NULL DEFAULT NULL,
       sku VARCHAR(64) NOT NULL DEFAULT '',
       name VARCHAR(160) NOT NULL,
       location_code VARCHAR(80) NOT NULL,
@@ -192,6 +193,7 @@ function inventory_ensure_schema() {
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       PRIMARY KEY (id),
+      KEY idx_client_mutation_id (client_mutation_id),
       KEY idx_sku (sku),
       KEY idx_name (name),
       KEY idx_location_code (location_code),
@@ -199,6 +201,7 @@ function inventory_ensure_schema() {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
   );
 
+  inventory_ensure_column('client_mutation_id', 'client_mutation_id VARCHAR(80) NULL DEFAULT NULL AFTER id');
   inventory_ensure_column('sku', "sku VARCHAR(64) NOT NULL DEFAULT '' AFTER id");
   inventory_ensure_column('location_code', "location_code VARCHAR(80) NOT NULL DEFAULT '' AFTER name");
   inventory_ensure_column('location_detail', "location_detail VARCHAR(160) NOT NULL DEFAULT '' AFTER location_code");

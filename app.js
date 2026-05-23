@@ -3,12 +3,18 @@ const addBinOptionValue = '__add_bin__';
 const addCategoryOptionValue = '__add_category__';
 const updateTokenStorageKey = 'inventoryUpdateToken';
 const viewStorageKey = 'inventoryActiveView';
+const queueDbName = 'inventoryMutationQueue';
+const queueStoreName = 'mutations';
+const queueRequestTimeoutMs = 12000;
 const maxPhotoDimension = 1280;
 const photoQuality = 0.78;
 
 const state = {
+  serverItems: [],
+  serverMeta: {},
   items: [],
   meta: {},
+  pendingQueue: [],
   query: '',
   categoryFilter: '',
   activeView: 'search',
@@ -23,6 +29,8 @@ const state = {
   removePhoto: false,
   previewUrl: '',
   toastTimer: null,
+  queueSyncing: false,
+  queueTimer: null,
 };
 
 const ui = {
@@ -101,6 +109,8 @@ const ui = {
   unitCount: document.getElementById('unit-count'),
   locationCount: document.getElementById('location-count'),
   categoryCount: document.getElementById('category-count'),
+  queueStat: document.getElementById('queue-stat'),
+  queueCount: document.getElementById('queue-count'),
   lastUpdated: document.getElementById('last-updated'),
   updateCurrentVersion: document.getElementById('update-current-version'),
   updateLatestVersion: document.getElementById('update-latest-version'),
@@ -193,19 +203,234 @@ function loadSavedView() {
   setActiveView(state.activeView);
 }
 
+function idbRequest(requestObject) {
+  return new Promise((resolve, reject) => {
+    requestObject.onsuccess = () => resolve(requestObject.result);
+    requestObject.onerror = () => reject(requestObject.error || new Error('Storage request failed'));
+  });
+}
+
+function idbTransactionComplete(transaction) {
+  return new Promise((resolve, reject) => {
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error || new Error('Storage transaction failed'));
+    transaction.onabort = () => reject(transaction.error || new Error('Storage transaction aborted'));
+  });
+}
+
+function openQueueDb() {
+  if (!('indexedDB' in window)) {
+    return Promise.reject(new Error('Queued saves need IndexedDB support in this browser.'));
+  }
+
+  return new Promise((resolve, reject) => {
+    const requestObject = indexedDB.open(queueDbName, 1);
+    requestObject.onupgradeneeded = () => {
+      const db = requestObject.result;
+      if (!db.objectStoreNames.contains(queueStoreName)) {
+        const store = db.createObjectStore(queueStoreName, { keyPath: 'id', autoIncrement: true });
+        store.createIndex('createdAt', 'createdAt', { unique: false });
+      }
+    };
+    requestObject.onsuccess = () => resolve(requestObject.result);
+    requestObject.onerror = () => reject(requestObject.error || new Error('Queue storage could not be opened'));
+  });
+}
+
+async function readQueuedMutations() {
+  const db = await openQueueDb();
+  try {
+    const transaction = db.transaction(queueStoreName, 'readonly');
+    const records = await idbRequest(transaction.objectStore(queueStoreName).getAll());
+    return records.sort((a, b) => Number(a.id) - Number(b.id));
+  } finally {
+    db.close();
+  }
+}
+
+async function addQueuedMutation(payload) {
+  const db = await openQueueDb();
+  try {
+    const transaction = db.transaction(queueStoreName, 'readwrite');
+    const record = {
+      payload,
+      attempts: 0,
+      lastError: '',
+      createdAt: new Date().toISOString(),
+    };
+    record.id = await idbRequest(transaction.objectStore(queueStoreName).add(record));
+    await idbTransactionComplete(transaction);
+    return record;
+  } finally {
+    db.close();
+  }
+}
+
+async function updateQueuedMutation(record) {
+  const db = await openQueueDb();
+  try {
+    const transaction = db.transaction(queueStoreName, 'readwrite');
+    await idbRequest(transaction.objectStore(queueStoreName).put(record));
+    await idbTransactionComplete(transaction);
+  } finally {
+    db.close();
+  }
+}
+
+async function deleteQueuedMutation(id) {
+  const db = await openQueueDb();
+  try {
+    const transaction = db.transaction(queueStoreName, 'readwrite');
+    await idbRequest(transaction.objectStore(queueStoreName).delete(id));
+    await idbTransactionComplete(transaction);
+  } finally {
+    db.close();
+  }
+}
+
+function updateQueueStatus() {
+  const count = state.pendingQueue.length;
+  ui.queueCount.textContent = String(count);
+  ui.queueStat.classList.toggle('hidden', count === 0);
+  ui.queueStat.classList.toggle('syncing', state.queueSyncing);
+  if (count > 0) {
+    ui.queueStat.title = state.queueSyncing ? 'Syncing queued saves' : 'Queued saves waiting to sync';
+  } else {
+    ui.queueStat.removeAttribute('title');
+  }
+}
+
+async function refreshQueuedMutations() {
+  try {
+    state.pendingQueue = await readQueuedMutations();
+  } catch (error) {
+    state.pendingQueue = [];
+    showToast(error.message || 'Queued save storage unavailable', true);
+  }
+  renderClientState();
+}
+
+function scheduleQueueSync(delay = 0) {
+  if (state.queueTimer) {
+    clearTimeout(state.queueTimer);
+  }
+  state.queueTimer = setTimeout(() => {
+    state.queueTimer = null;
+    processMutationQueue();
+  }, delay);
+}
+
+function queuedDuplicateIsAlreadyApplied(payload, error) {
+  if (!error || error.status !== 422 || !/already exists/i.test(error.message || '')) {
+    return false;
+  }
+  return payload.action === 'createBin' || payload.action === 'createCategory';
+}
+
+async function processMutationQueue() {
+  if (state.queueSyncing || state.pendingQueue.length === 0) return;
+  if (navigator.onLine === false) {
+    updateQueueStatus();
+    return;
+  }
+
+  state.queueSyncing = true;
+  updateQueueStatus();
+  let synced = 0;
+
+  try {
+    const queue = await readQueuedMutations();
+    for (const record of queue) {
+      try {
+        const data = await request(apiUrl, {
+          method: 'POST',
+          timeoutMs: queueRequestTimeoutMs,
+          body: JSON.stringify(record.payload),
+        });
+        await deleteQueuedMutation(record.id);
+        state.pendingQueue = await readQueuedMutations();
+        applyPayload(data);
+        synced += 1;
+      } catch (error) {
+        if (queuedDuplicateIsAlreadyApplied(record.payload || {}, error)) {
+          await deleteQueuedMutation(record.id);
+          state.pendingQueue = await readQueuedMutations();
+          renderClientState();
+          synced += 1;
+          continue;
+        }
+
+        record.attempts = (record.attempts || 0) + 1;
+        record.lastError = error.message || 'Sync failed';
+        record.lastAttemptAt = new Date().toISOString();
+        await updateQueuedMutation(record);
+        break;
+      }
+    }
+  } catch (error) {
+    showToast(error.message || 'Queued save sync failed', true);
+  } finally {
+    state.queueSyncing = false;
+    await refreshQueuedMutations();
+    if (synced > 0 && state.pendingQueue.length === 0) {
+      showToast('Queued saves synced');
+      loadItems();
+    } else if (state.pendingQueue.length > 0) {
+      scheduleQueueSync(15000);
+    }
+  }
+}
+
+async function queueMutation(payload) {
+  const queuedPayload = { ...payload };
+  if (!queuedPayload.clientMutationId) {
+    queuedPayload.clientMutationId = mutationId();
+  }
+
+  const record = await addQueuedMutation(queuedPayload);
+  state.pendingQueue = await readQueuedMutations();
+  renderClientState();
+  scheduleQueueSync(0);
+  return record;
+}
+
 async function request(path, options = {}) {
+  const { timeoutMs = 0, ...fetchOptions } = options;
   const headers = {
     Accept: 'application/json',
-    ...(options.headers || {}),
+    ...(fetchOptions.headers || {}),
   };
-  if (options.body && !headers['Content-Type']) {
+  if (fetchOptions.body && !headers['Content-Type']) {
     headers['Content-Type'] = 'application/json';
   }
 
-  const response = await fetch(path, {
-    ...options,
-    headers,
-  });
+  const controller = timeoutMs > 0 && 'AbortController' in window ? new AbortController() : null;
+  let timeout = null;
+  if (controller) {
+    timeout = setTimeout(() => controller.abort(), timeoutMs);
+  }
+
+  let response;
+  try {
+    response = await fetch(path, {
+      ...fetchOptions,
+      headers,
+      signal: controller ? controller.signal : fetchOptions.signal,
+    });
+  } catch (error) {
+    if (timeout) clearTimeout(timeout);
+    const networkError = new Error(
+      error.name === 'AbortError'
+        ? 'Connection timed out; saved locally and queued.'
+        : (error.message || 'Network request failed')
+    );
+    networkError.isNetworkError = true;
+    networkError.cause = error;
+    throw networkError;
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
+
   const raw = await response.text();
   let data = {};
   if (raw) {
@@ -221,14 +446,163 @@ async function request(path, options = {}) {
     }
     const error = new Error(data.error || `Server returned ${response.status}`);
     error.data = data;
+    error.status = response.status;
     throw error;
   }
   return data;
 }
 
 function applyPayload(data) {
-  state.items = data.items || [];
-  state.meta = data.meta || {};
+  state.serverItems = data.items || [];
+  state.serverMeta = data.meta || {};
+  renderClientState();
+}
+
+function cloneJson(value, fallback) {
+  return JSON.parse(JSON.stringify(value === undefined ? fallback : value));
+}
+
+function mutationId() {
+  const random = window.crypto && window.crypto.getRandomValues
+    ? Array.from(window.crypto.getRandomValues(new Uint32Array(2))).map((part) => part.toString(36)).join('')
+    : Math.random().toString(36).slice(2);
+  return `${Date.now().toString(36)}-${random}`;
+}
+
+function normalisePayloadCode(value) {
+  return cleanCode(value);
+}
+
+function ensureStats(meta) {
+  if (!meta.stats || typeof meta.stats !== 'object') {
+    meta.stats = {};
+  }
+  return meta.stats;
+}
+
+function addOrUpdateListEntry(list, code, label, countKey = 'itemCount') {
+  const target = normalisePayloadCode(code);
+  if (!target) return;
+  const existing = list.find((entry) => entry.code === target);
+  if (existing) {
+    existing.label = label || existing.label || '';
+    return;
+  }
+  list.push({
+    code: target,
+    label: label || '',
+    [countKey]: 0,
+  });
+  list.sort((a, b) => a.code.localeCompare(b.code));
+}
+
+function localPhotoUrl(payload, existing = null) {
+  if (payload.removePhoto) return '';
+  if (payload.photoData && payload.photoMime) {
+    return `data:${payload.photoMime};base64,${payload.photoData}`;
+  }
+  return existing && existing.photoUrl ? existing.photoUrl : '';
+}
+
+function localItemFromPayload(payload, existing = null) {
+  const id = existing ? existing.id : `queued-${payload.clientMutationId || mutationId()}`;
+  const photoUrl = localPhotoUrl(payload, existing);
+  return {
+    id,
+    sku: normalisePayloadCode(payload.sku || ''),
+    name: String(payload.name || '').trim() || 'Queued item',
+    locationCode: normalisePayloadCode(payload.locationCode || ''),
+    locationDetail: String(payload.locationDetail || '').trim(),
+    quantity: Number.parseInt(payload.quantity, 10) || 1,
+    category: normalisePayloadCode(payload.category || ''),
+    notes: String(payload.notes || '').trim(),
+    hasPhoto: Boolean(photoUrl),
+    photoUrl,
+    createdAt: existing && existing.createdAt ? existing.createdAt : new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    pending: true,
+  };
+}
+
+function applyQueuedMutationToState(record, items, meta) {
+  const payload = record.payload || {};
+  const stats = ensureStats(meta);
+
+  if (payload.action === 'createBin') {
+    addOrUpdateListEntry(meta.bins, payload.code, payload.label || '');
+    stats.locationCount = meta.bins.length;
+    return;
+  }
+
+  if (payload.action === 'updateBin') {
+    const original = normalisePayloadCode(payload.originalCode || payload.code || '');
+    const next = normalisePayloadCode(payload.code || '');
+    const bin = meta.bins.find((entry) => entry.code === original);
+    if (bin) {
+      bin.code = next;
+      bin.label = payload.label || '';
+    } else {
+      addOrUpdateListEntry(meta.bins, next, payload.label || '');
+    }
+    items.forEach((item) => {
+      if (item.locationCode === original) item.locationCode = next;
+    });
+    stats.locationCount = meta.bins.length;
+    return;
+  }
+
+  if (payload.action === 'createCategory') {
+    addOrUpdateListEntry(meta.managedCategories, payload.code, payload.label || '');
+    stats.categoryCount = meta.managedCategories.length;
+    return;
+  }
+
+  if (payload.action === 'updateCategory') {
+    const original = normalisePayloadCode(payload.originalCode || payload.code || '');
+    const next = normalisePayloadCode(payload.code || '');
+    const category = meta.managedCategories.find((entry) => entry.code === original);
+    if (category) {
+      category.code = next;
+      category.label = payload.label || '';
+    } else {
+      addOrUpdateListEntry(meta.managedCategories, next, payload.label || '');
+    }
+    items.forEach((item) => {
+      if (item.category === original) item.category = next;
+    });
+    stats.categoryCount = meta.managedCategories.length;
+    return;
+  }
+
+  if (payload.action === 'create') {
+    const queuedId = `queued-${payload.clientMutationId || ''}`;
+    const existing = items.find((item) => item.id === queuedId);
+    if (!existing) {
+      items.unshift(localItemFromPayload(payload));
+    }
+    return;
+  }
+
+  if (payload.action === 'update') {
+    const index = items.findIndex((item) => Number(item.id) === Number(payload.id));
+    if (index !== -1) {
+      items[index] = localItemFromPayload(payload, items[index]);
+    }
+  }
+}
+
+function renderClientState() {
+  const items = cloneJson(state.serverItems, []);
+  const meta = cloneJson(state.serverMeta, {});
+  meta.bins = Array.isArray(meta.bins) ? meta.bins : [];
+  meta.managedCategories = Array.isArray(meta.managedCategories) ? meta.managedCategories : [];
+  meta.locationDetails = Array.isArray(meta.locationDetails) ? meta.locationDetails : [];
+  meta.stats = meta.stats || {};
+
+  state.pendingQueue.forEach((record) => applyQueuedMutationToState(record, items, meta));
+
+  state.items = items;
+  state.meta = meta;
   updateDatalists();
   renderBinSelect();
   renderCategorySelect();
@@ -236,6 +610,7 @@ function applyPayload(data) {
   renderBins();
   renderCategories();
   renderItems();
+  updateQueueStatus();
 }
 
 function itemMatchesQuery(item, query) {
@@ -436,9 +811,9 @@ function displayDetailTime(value) {
 
 function updateStats(items) {
   const stats = state.meta.stats || {};
-  ui.itemCount.textContent = String(stats.itemCount ?? state.items.length);
-  ui.unitCount.textContent = String(stats.unitCount ?? state.items.reduce((sum, item) => sum + (item.quantity || 0), 0));
-  ui.locationCount.textContent = String(stats.locationCount ?? 0);
+  ui.itemCount.textContent = String(state.items.length);
+  ui.unitCount.textContent = String(state.items.reduce((sum, item) => sum + (item.quantity || 0), 0));
+  ui.locationCount.textContent = String(stats.locationCount ?? bins().length);
   ui.categoryCount.textContent = String(stats.categoryCount ?? categories().length);
   ui.resultCount.textContent = `${items.length} ${items.length === 1 ? 'result' : 'results'}`;
   ui.lastUpdated.textContent = stats.lastUpdated ? `Updated ${displayTime(stats.lastUpdated)}` : 'Ready';
@@ -460,10 +835,11 @@ function renderItems() {
     card.dataset.id = item.id;
     card.tabIndex = 0;
     card.setAttribute('aria-label', `View ${item.name}`);
+    card.classList.toggle('pending-item', Boolean(item.pending));
     fragment.querySelector('.item-name').textContent = item.name;
     fragment.querySelector('.item-location').textContent = location;
     fragment.querySelector('.quantity').textContent = `x${item.quantity || 1}`;
-    fragment.querySelector('.updated').textContent = displayTime(item.updatedAt);
+    fragment.querySelector('.updated').textContent = item.pending ? 'Queued' : displayTime(item.updatedAt);
 
     if (item.hasPhoto && item.photoUrl) {
       photo.src = item.photoUrl;
@@ -487,10 +863,18 @@ function renderItems() {
       notes.classList.remove('hidden');
     }
 
-    fragment.querySelector('.minus-button').addEventListener('click', () => adjustItem(item.id, -1));
-    fragment.querySelector('.plus-button').addEventListener('click', () => adjustItem(item.id, 1));
-    fragment.querySelector('.edit-button').addEventListener('click', () => editItem(item.id));
-    fragment.querySelector('.delete-button').addEventListener('click', () => deleteItem(item.id));
+    const actionButtons = Array.from(fragment.querySelectorAll('.item-actions button'));
+    if (item.pending) {
+      actionButtons.forEach((button) => {
+        button.disabled = true;
+        button.title = 'Available after queued save syncs';
+      });
+    } else {
+      fragment.querySelector('.minus-button').addEventListener('click', () => adjustItem(item.id, -1));
+      fragment.querySelector('.plus-button').addEventListener('click', () => adjustItem(item.id, 1));
+      fragment.querySelector('.edit-button').addEventListener('click', () => editItem(item.id));
+      fragment.querySelector('.delete-button').addEventListener('click', () => deleteItem(item.id));
+    }
     card.addEventListener('click', (event) => {
       if (event.target instanceof Element && event.target.closest('button')) return;
       openItemDetail(item.id);
@@ -831,16 +1215,12 @@ function categoryPayload() {
 async function saveBin(event) {
   event.preventDefault();
   ui.saveBinButton.disabled = true;
-  setBinStatus('Saving...');
+  setBinStatus('Saving locally...');
 
   try {
-    const data = await request(apiUrl, {
-      method: 'POST',
-      body: JSON.stringify(binPayload()),
-    });
+    await queueMutation(binPayload());
     resetBinForm();
-    applyPayload(data);
-    showToast('Bin saved');
+    showToast('Bin queued');
   } catch (error) {
     setBinStatus(error.message, true);
   } finally {
@@ -852,17 +1232,13 @@ async function saveQuickBin(event) {
   event.preventDefault();
   const createdCode = cleanCode(ui.quickBinCode.value);
   ui.saveQuickBinButton.disabled = true;
-  setQuickBinStatus('Saving...');
+  setQuickBinStatus('Saving locally...');
 
   try {
-    const data = await request(apiUrl, {
-      method: 'POST',
-      body: JSON.stringify(quickBinPayload()),
-    });
-    applyPayload(data);
+    await queueMutation(quickBinPayload());
     selectLocationCode(createdCode);
     closeQuickBinDialog();
-    showToast('Bin added');
+    showToast('Bin queued');
   } catch (error) {
     setQuickBinStatus(error.message, true);
   } finally {
@@ -874,17 +1250,13 @@ async function saveQuickCategory(event) {
   event.preventDefault();
   const createdCode = cleanCode(ui.quickCategoryCode.value);
   ui.saveQuickCategoryButton.disabled = true;
-  setQuickCategoryStatus('Saving...');
+  setQuickCategoryStatus('Saving locally...');
 
   try {
-    const data = await request(apiUrl, {
-      method: 'POST',
-      body: JSON.stringify(quickCategoryPayload()),
-    });
-    applyPayload(data);
+    await queueMutation(quickCategoryPayload());
     selectCategoryCode(createdCode);
     closeQuickCategoryDialog();
-    showToast('Category added');
+    showToast('Category queued');
   } catch (error) {
     setQuickCategoryStatus(error.message, true);
   } finally {
@@ -895,16 +1267,12 @@ async function saveQuickCategory(event) {
 async function saveCategory(event) {
   event.preventDefault();
   ui.saveCategoryButton.disabled = true;
-  setCategoryStatus('Saving...');
+  setCategoryStatus('Saving locally...');
 
   try {
-    const data = await request(apiUrl, {
-      method: 'POST',
-      body: JSON.stringify(categoryPayload()),
-    });
+    await queueMutation(categoryPayload());
     resetCategoryForm();
-    applyPayload(data);
-    showToast('Category saved');
+    showToast('Category queued');
   } catch (error) {
     setCategoryStatus(error.message, true);
   } finally {
@@ -1110,19 +1478,15 @@ async function formPayload() {
 async function saveItem(event) {
   event.preventDefault();
   ui.saveButton.disabled = true;
-  setStatus(ui.photo.files.length ? 'Compressing photo...' : 'Saving...');
+  setStatus(ui.photo.files.length ? 'Compressing photo...' : 'Saving locally...');
 
   try {
     const payload = await formPayload();
-    setStatus('Saving...');
-    const data = await request(apiUrl, {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    });
+    setStatus('Saving locally...');
+    await queueMutation(payload);
     resetForm();
-    applyPayload(data);
     setActiveView('search');
-    showToast('Stock saved');
+    showToast('Stock queued');
   } catch (error) {
     setStatus(error.message, true);
   } finally {
@@ -1334,10 +1698,17 @@ async function loadItems() {
   try {
     const data = await request(`${apiUrl}?q=`);
     applyPayload(data);
+    scheduleQueueSync(500);
   } catch (error) {
     ui.lastUpdated.textContent = 'Offline';
     setStatus(error.message, true);
+    renderClientState();
   }
+}
+
+async function initialiseQueue() {
+  await refreshQueuedMutations();
+  scheduleQueueSync(0);
 }
 
 ui.form.addEventListener('submit', saveItem);
@@ -1417,6 +1788,17 @@ ui.navButtons.forEach((button) => {
   });
 });
 
+window.addEventListener('online', () => {
+  showToast('Back online; syncing queued saves');
+  scheduleQueueSync(0);
+});
+
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) {
+    scheduleQueueSync(0);
+  }
+});
+
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('sw.js').catch((error) => {
@@ -1427,4 +1809,5 @@ if ('serviceWorker' in navigator) {
 
 loadSavedUpdateToken();
 loadSavedView();
+initialiseQueue();
 loadItems();

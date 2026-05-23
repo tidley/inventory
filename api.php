@@ -110,6 +110,11 @@ function item_input($data) {
   );
 }
 
+function client_mutation_id_input($data) {
+  $id = clean_text(array_value($data, 'clientMutationId', ''), 80);
+  return $id === '' ? null : $id;
+}
+
 function category_input($data, $codeKey) {
   $code = strtoupper(clean_text(array_value($data, $codeKey, ''), 80));
   $label = clean_text(array_value($data, 'label', ''), 160);
@@ -665,17 +670,32 @@ try {
   }
 
   if ($action === 'create') {
+    $clientMutationId = client_mutation_id_input($input);
+    if ($clientMutationId !== null) {
+      $existing = inventory_db()->prepare('SELECT id FROM inventory_items WHERE client_mutation_id = :client_mutation_id LIMIT 1');
+      $existing->execute(array(':client_mutation_id' => $clientMutationId));
+      $row = $existing->fetch();
+      if ($row) {
+        json_response(array(
+          'item' => get_item((int) $row['id']),
+          'items' => list_items(''),
+          'meta' => meta(),
+        ));
+      }
+    }
+
     $item = item_input($input);
     $photo = photo_input($input);
 
     if ($photo && empty($photo['remove'])) {
       $stmt = inventory_db()->prepare(
         "INSERT INTO inventory_items
-          (sku, name, location_code, location_detail, quantity, category, notes, photo_mime, photo_data, photo_updated_at)
+          (client_mutation_id, sku, name, location_code, location_detail, quantity, category, notes, photo_mime, photo_data, photo_updated_at)
         VALUES
-          (:sku, :name, :location_code, :location_detail, :quantity, :category, :notes, :photo_mime, :photo_data, NOW())"
+          (:client_mutation_id, :sku, :name, :location_code, :location_detail, :quantity, :category, :notes, :photo_mime, :photo_data, NOW())"
       );
       bind_and_execute($stmt, array(
+        ':client_mutation_id' => $clientMutationId,
         ':sku' => $item['sku'],
         ':name' => $item['name'],
         ':location_code' => $item['location_code'],
@@ -689,11 +709,12 @@ try {
     } else {
       $stmt = inventory_db()->prepare(
         "INSERT INTO inventory_items
-          (sku, name, location_code, location_detail, quantity, category, notes)
+          (client_mutation_id, sku, name, location_code, location_detail, quantity, category, notes)
         VALUES
-          (:sku, :name, :location_code, :location_detail, :quantity, :category, :notes)"
+          (:client_mutation_id, :sku, :name, :location_code, :location_detail, :quantity, :category, :notes)"
       );
       bind_and_execute($stmt, array(
+        ':client_mutation_id' => $clientMutationId,
         ':sku' => $item['sku'],
         ':name' => $item['name'],
         ':location_code' => $item['location_code'],
