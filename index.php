@@ -2,7 +2,7 @@
 require_once __DIR__ . '/lib.php';
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/version.php';
-$assetVersion = INVENTORY_VERSION . '-2026-05-23-17';
+$assetVersion = INVENTORY_VERSION . '-2026-05-23-18';
 inventory_require_auth_page($assetVersion);
 ?>
 <!doctype html>
@@ -54,14 +54,30 @@ inventory_require_auth_page($assetVersion);
       <form id="item-form" autocomplete="off">
         <input type="hidden" id="item-id" name="id" />
 
-        <label class="field" for="sku">
-          <span>Code</span>
-          <input id="sku" name="sku" type="text" inputmode="text" maxlength="64" placeholder="AUTO-001" />
-        </label>
-
         <label class="field" for="name">
           <span>Item</span>
           <input id="name" name="name" type="text" inputmode="text" required maxlength="160" placeholder="Car jack" />
+        </label>
+
+        <label class="field" for="quantity">
+          <span>Count</span>
+          <input id="quantity" name="quantity" type="number" inputmode="numeric" min="1" max="9999" value="1" />
+        </label>
+
+        <label class="field field-full photo-field" for="photo">
+          <span>Photo</span>
+          <input id="photo" name="photo" type="file" accept="image/*" capture="environment" />
+          <div class="photo-preview hidden" id="photo-preview">
+            <img id="photo-preview-image" alt="" />
+            <button class="small-button danger-button" id="remove-photo" type="button">Remove photo</button>
+          </div>
+        </label>
+
+        <label class="field field-full" for="category">
+          <span>Category</span>
+          <select id="category" name="category">
+            <option value="">No category</option>
+          </select>
         </label>
 
         <label class="field" for="location-code">
@@ -76,25 +92,9 @@ inventory_require_auth_page($assetVersion);
           <input id="location-detail" name="locationDetail" type="text" maxlength="160" list="location-details" placeholder="Garage shelves 1 lower" />
         </label>
 
-        <label class="field" for="quantity">
-          <span>Stock</span>
-          <input id="quantity" name="quantity" type="number" inputmode="numeric" min="1" max="9999" value="1" />
-        </label>
-
-        <label class="field" for="category">
-          <span>Category</span>
-          <select id="category" name="category">
-            <option value="">No category</option>
-          </select>
-        </label>
-
-        <label class="field field-full photo-field" for="photo">
-          <span>Photo</span>
-          <input id="photo" name="photo" type="file" accept="image/*" capture="environment" />
-          <div class="photo-preview hidden" id="photo-preview">
-            <img id="photo-preview-image" alt="" />
-            <button class="small-button danger-button" id="remove-photo" type="button">Remove photo</button>
-          </div>
+        <label class="field field-full" for="sku">
+          <span>Code</span>
+          <input id="sku" name="sku" type="text" inputmode="text" maxlength="64" placeholder="AUTO-001" />
         </label>
 
         <label class="field field-full" for="notes">
