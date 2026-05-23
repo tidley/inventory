@@ -102,9 +102,16 @@ function inventory_db() {
 }
 
 function inventory_column_exists($column) {
-  $stmt = inventory_db()->prepare('SHOW COLUMNS FROM inventory_items LIKE :column');
+  $stmt = inventory_db()->prepare(
+    "SELECT COUNT(*) AS column_count
+      FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'inventory_items'
+        AND COLUMN_NAME = :column"
+  );
   $stmt->execute(array(':column' => $column));
-  return (bool) $stmt->fetch();
+  $row = $stmt->fetch();
+  return isset($row['column_count']) && (int) $row['column_count'] > 0;
 }
 
 function inventory_ensure_column($column, $definition) {
