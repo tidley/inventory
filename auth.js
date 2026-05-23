@@ -132,7 +132,7 @@ async function signInWithPasskey() {
 
   const button = document.getElementById('auth-passkey-login');
   button.disabled = true;
-  authStatus('Waiting for fingerprint...');
+  authStatus('Waiting for device unlock...');
 
   try {
     const options = await authRequest({ action: 'passkeyLoginOptions', username });
@@ -157,7 +157,7 @@ async function registerPasskey() {
 
   const button = document.getElementById('enable-passkey-button');
   button.disabled = true;
-  authStatus('Waiting for fingerprint...');
+  authStatus('Waiting for device unlock...');
 
   try {
     const options = await authRequest({ action: 'passkeyRegisterOptions' });
@@ -168,7 +168,7 @@ async function registerPasskey() {
     const result = await authRequest(registrationPayload(credential));
     const count = document.getElementById('passkey-count');
     if (count) count.textContent = String(result.passkeyCount || 0);
-    authStatus('Fingerprint sign in enabled.');
+    authStatus('Device unlock sign in enabled.');
   } catch (error) {
     authStatus(error.message, true);
   } finally {

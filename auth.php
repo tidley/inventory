@@ -285,7 +285,8 @@ function inventory_passkey_register_options() {
       ),
       'authenticatorSelection' => array(
         'authenticatorAttachment' => 'platform',
-        'residentKey' => 'preferred',
+        'residentKey' => 'discouraged',
+        'requireResidentKey' => false,
         'userVerification' => 'required',
       ),
       'timeout' => 60000,
@@ -677,7 +678,7 @@ function inventory_render_login_page($assetVersion) {
           </label>
           <div class="form-actions">
             <button class="primary-button" id="auth-login-button" type="submit">Sign in</button>
-            <button class="small-button" id="auth-passkey-login" type="button">Use fingerprint</button>
+            <button class="small-button" id="auth-passkey-login" type="button">Use device unlock</button>
           </div>
           <p class="status" id="auth-status" role="status" aria-live="polite"></p>
         </form>

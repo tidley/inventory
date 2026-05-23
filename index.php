@@ -2,7 +2,7 @@
 require_once __DIR__ . '/lib.php';
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/version.php';
-$assetVersion = INVENTORY_VERSION . '-2026-05-23-10';
+$assetVersion = INVENTORY_VERSION . '-2026-05-23-11';
 inventory_require_auth_page($assetVersion);
 ?>
 <!doctype html>
@@ -219,7 +219,7 @@ inventory_require_auth_page($assetVersion);
       </div>
 
       <div class="form-actions update-actions">
-        <button class="primary-button" id="enable-passkey-button" type="button">Enable fingerprint</button>
+        <button class="primary-button" id="enable-passkey-button" type="button">Enable device unlock</button>
         <p class="status" id="security-status" role="status" aria-live="polite"></p>
       </div>
     </section>

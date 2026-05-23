@@ -7,7 +7,7 @@ Small PHP-hosted, PWA-capable personal inventory tracker with MySQL storage.
 - `index.php` serves the mobile-first UI.
 - `api.php` stores and searches inventory rows in MySQL.
 - `photo.php` serves item photos stored in MySQL.
-- `auth.php` and `auth.js` provide username/PIN login and optional passkey biometric sign-in.
+- `auth.php` and `auth.js` provide username/PIN login and optional device-unlock passkey sign-in.
 - `updater.php` installs GitHub release ZIPs when `UPDATE_TOKEN` is configured.
 - `manifest.json`, `sw.js`, and `icons/` make the app installable on a phone.
 - `styles.css` and `app.js` are static assets.
@@ -44,4 +44,4 @@ php -S 127.0.0.1:8080
 
 ## Releases
 
-Create a tag like `v0.2.2` after updating `INVENTORY_VERSION` in `version.php`. GitHub Actions builds `build/inventory.zip` and attaches it to the release. The in-app update panel checks the repository configured by `INVENTORY_UPDATE_REPO` and installs the ZIP when the configured `UPDATE_TOKEN` is supplied. For a private GitHub repository, set `INVENTORY_GITHUB_TOKEN` in `.env` to a token that can read repository contents/releases.
+Create a tag like `v0.2.3` after updating `INVENTORY_VERSION` in `version.php`. GitHub Actions builds `build/inventory.zip` and attaches it to the release. The in-app update panel checks the repository configured by `INVENTORY_UPDATE_REPO` and installs the ZIP when the configured `UPDATE_TOKEN` is supplied. For a private GitHub repository, set `INVENTORY_GITHUB_TOKEN` in `.env` to a token that can read repository contents/releases.
