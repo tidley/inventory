@@ -739,6 +739,9 @@ function applyScannedBinCode(code) {
   setActiveView('inventory');
   setNfcStatus(`Bin set to ${target}.`);
   showToast(`Bin set to ${target}`);
+  markBinTagKnown(target).catch(() => {
+    setNfcStatus(`Bin set to ${target}; tag status not saved.`, true);
+  });
   return true;
 }
 
@@ -851,6 +854,14 @@ function setTagButtonState(button, label, isWritten = false) {
   button.classList.toggle('tag-written', isWritten);
 }
 
+async function markBinTagKnown(code) {
+  const data = await request(apiUrl, {
+    method: 'POST',
+    body: JSON.stringify({ action: 'markBinTag', code }),
+  });
+  applyPayload(data);
+}
+
 async function writeBinTag(code, triggerButton = null) {
   const target = cleanCode(code);
   if (!target || !binForCode(target)) {
@@ -874,11 +885,21 @@ async function writeBinTag(code, triggerButton = null) {
     await writer.write(nfcWriteMessageForBin(target));
     vibrate([70, 35, 120]);
     setTagButtonState(triggerButton, 'Written', true);
+    try {
+      await markBinTagKnown(target);
+    } catch (error) {
+      if (triggerButton) {
+        triggerButton.disabled = false;
+        setTagButtonState(triggerButton, 'Write tag');
+      }
+      showToast(`${target} tag written; status not saved`, true);
+      return;
+    }
     showToast(`${target} tag written`);
     if (triggerButton) {
       setTimeout(() => {
         triggerButton.disabled = false;
-        setTagButtonState(triggerButton, 'Write tag');
+        setTagButtonState(triggerButton, 'Update tag');
       }, 2200);
     }
   } catch (error) {
@@ -1124,6 +1145,7 @@ function renderBins() {
     fragment.querySelector('.bin-code').textContent = bin.code;
     fragment.querySelector('.bin-label').textContent = bin.label || '';
     fragment.querySelector('.bin-count').textContent = `${bin.itemCount || 0} ${bin.itemCount === 1 ? 'item' : 'items'}`;
+    fragment.querySelector('.bin-tag-button').textContent = bin.hasTag ? 'Update tag' : 'Write tag';
     fragment.querySelector('.bin-edit-button').addEventListener('click', () => editBin(bin.code));
     fragment.querySelector('.bin-tag-button').addEventListener('click', (event) => {
       writeBinTag(bin.code, event.currentTarget);

@@ -2,7 +2,7 @@
 require_once __DIR__ . '/lib.php';
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/version.php';
-$assetVersion = INVENTORY_VERSION . '-2026-05-24-02';
+$assetVersion = INVENTORY_VERSION . '-2026-05-24-03';
 inventory_require_auth_page($assetVersion);
 ?>
 <!doctype html>

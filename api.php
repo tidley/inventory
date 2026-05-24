@@ -271,10 +271,11 @@ function list_bins() {
     "SELECT
       b.code,
       b.label,
+      b.nfc_tag_written_at,
       COUNT(i.id) AS item_count
     FROM inventory_bins b
     LEFT JOIN inventory_items i ON i.location_code = b.code
-    GROUP BY b.id, b.code, b.label
+    GROUP BY b.id, b.code, b.label, b.nfc_tag_written_at
     ORDER BY b.code"
   );
 
@@ -284,6 +285,8 @@ function list_bins() {
       'code' => (string) $row['code'],
       'label' => (string) $row['label'],
       'itemCount' => (int) $row['item_count'],
+      'tagWrittenAt' => iso_time(array_value($row, 'nfc_tag_written_at', null)),
+      'hasTag' => array_value($row, 'nfc_tag_written_at', null) !== null,
     );
   }
   return $bins;
@@ -509,6 +512,18 @@ try {
       $db->rollBack();
       json_response(array('error' => 'Bin could not be updated'), 500);
     }
+
+    send_inventory();
+  }
+
+  if ($action === 'markBinTag') {
+    $code = strtoupper(clean_text(array_value($input, 'code', ''), 80));
+    if ($code === '' || !bin_exists($code)) {
+      json_response(array('error' => 'Bin not found'), 404);
+    }
+
+    $stmt = inventory_db()->prepare('UPDATE inventory_bins SET nfc_tag_written_at = NOW() WHERE code = :code');
+    bind_and_execute($stmt, array(':code' => $code));
 
     send_inventory();
   }

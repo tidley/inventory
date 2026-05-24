@@ -1,4 +1,4 @@
-const CACHE_VERSION = "v25";
+const CACHE_VERSION = "v26";
 const STATIC_CACHE = `inventory-static-${CACHE_VERSION}`;
 
 const STATIC_ASSETS = [

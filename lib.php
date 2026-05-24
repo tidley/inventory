@@ -108,22 +108,32 @@ function inventory_db() {
   return $pdo;
 }
 
-function inventory_column_exists($column) {
+function inventory_table_column_exists($table, $column) {
   $stmt = inventory_db()->prepare(
     "SELECT COUNT(*) AS column_count
       FROM INFORMATION_SCHEMA.COLUMNS
       WHERE TABLE_SCHEMA = DATABASE()
-        AND TABLE_NAME = 'inventory_items'
+        AND TABLE_NAME = :table
         AND COLUMN_NAME = :column"
   );
-  $stmt->execute(array(':column' => $column));
+  $stmt->execute(array(':table' => $table, ':column' => $column));
   $row = $stmt->fetch();
   return isset($row['column_count']) && (int) $row['column_count'] > 0;
+}
+
+function inventory_column_exists($column) {
+  return inventory_table_column_exists('inventory_items', $column);
 }
 
 function inventory_ensure_column($column, $definition) {
   if (!inventory_column_exists($column)) {
     inventory_db()->exec("ALTER TABLE inventory_items ADD COLUMN $definition");
+  }
+}
+
+function inventory_ensure_table_column($table, $column, $definition) {
+  if (!inventory_table_column_exists($table, $column)) {
+    inventory_db()->exec("ALTER TABLE $table ADD COLUMN $definition");
   }
 }
 
@@ -133,6 +143,7 @@ function inventory_ensure_bins_schema() {
       id INT UNSIGNED NOT NULL AUTO_INCREMENT,
       code VARCHAR(80) NOT NULL,
       label VARCHAR(160) NOT NULL DEFAULT '',
+      nfc_tag_written_at TIMESTAMP NULL DEFAULT NULL,
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       PRIMARY KEY (id),
@@ -140,6 +151,7 @@ function inventory_ensure_bins_schema() {
       KEY idx_label (label)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
   );
+  inventory_ensure_table_column('inventory_bins', 'nfc_tag_written_at', 'nfc_tag_written_at TIMESTAMP NULL DEFAULT NULL AFTER label');
 }
 
 function inventory_seed_bins_from_items() {
