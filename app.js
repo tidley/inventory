@@ -757,6 +757,12 @@ function nfcUnavailableMessage() {
   return 'NFC is not available in this browser.';
 }
 
+function vibrate(pattern) {
+  if ('vibrate' in navigator) {
+    navigator.vibrate(pattern);
+  }
+}
+
 function decodeNfcRecord(record) {
   if (!record || !record.data) return '';
   if (typeof record.data === 'string') return record.data;
@@ -839,7 +845,13 @@ async function scanBinTag() {
   }
 }
 
-async function writeBinTag(code) {
+function setTagButtonState(button, label, isWritten = false) {
+  if (!button) return;
+  button.textContent = label;
+  button.classList.toggle('tag-written', isWritten);
+}
+
+async function writeBinTag(code, triggerButton = null) {
   const target = cleanCode(code);
   if (!target || !binForCode(target)) {
     showToast('Select a configured bin first', true);
@@ -852,12 +864,29 @@ async function writeBinTag(code) {
   }
 
   const writer = new NDEFReader();
+  if (triggerButton) {
+    triggerButton.disabled = true;
+    setTagButtonState(triggerButton, 'Tap tag');
+  }
   showToast(`Tap tag for ${target}`);
 
   try {
     await writer.write(nfcWriteMessageForBin(target));
+    vibrate([70, 35, 120]);
+    setTagButtonState(triggerButton, 'Written', true);
     showToast(`${target} tag written`);
+    if (triggerButton) {
+      setTimeout(() => {
+        triggerButton.disabled = false;
+        setTagButtonState(triggerButton, 'Write tag');
+      }, 2200);
+    }
   } catch (error) {
+    vibrate(180);
+    if (triggerButton) {
+      triggerButton.disabled = false;
+      setTagButtonState(triggerButton, 'Write tag');
+    }
     showToast(error.message || 'NFC write failed', true);
   }
 }
@@ -1096,7 +1125,9 @@ function renderBins() {
     fragment.querySelector('.bin-label').textContent = bin.label || '';
     fragment.querySelector('.bin-count').textContent = `${bin.itemCount || 0} ${bin.itemCount === 1 ? 'item' : 'items'}`;
     fragment.querySelector('.bin-edit-button').addEventListener('click', () => editBin(bin.code));
-    fragment.querySelector('.bin-tag-button').addEventListener('click', () => writeBinTag(bin.code));
+    fragment.querySelector('.bin-tag-button').addEventListener('click', (event) => {
+      writeBinTag(bin.code, event.currentTarget);
+    });
     fragment.querySelector('.bin-delete-button').addEventListener('click', () => deleteBin(bin.code));
     ui.binList.appendChild(fragment);
   });

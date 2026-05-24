@@ -810,6 +810,12 @@ textarea:focus {
   background: #1d2d3f;
 }
 
+.tag-written {
+  border-color: #1f6a58;
+  color: var(--positive-text);
+  background: var(--positive-bg);
+}
+
 .danger-button {
   border-color: #5a382e;
   color: var(--negative-text);
