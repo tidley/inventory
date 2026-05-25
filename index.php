@@ -2,7 +2,7 @@
 require_once __DIR__ . '/lib.php';
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/version.php';
-$assetVersion = INVENTORY_VERSION . '-2026-05-25-01';
+$assetVersion = INVENTORY_VERSION . '-2026-05-25-02';
 inventory_require_auth_page($assetVersion);
 ?>
 <!doctype html>
@@ -34,10 +34,44 @@ inventory_require_auth_page($assetVersion);
     </header>
 
     <nav class="app-nav" aria-label="Inventory views">
-      <button class="nav-button active" type="button" data-view-target="search">Search</button>
-      <button class="nav-button" type="button" data-view-target="inventory">Stock</button>
-      <button class="nav-button" type="button" data-view-target="manage">Bins</button>
-      <button class="nav-button" type="button" data-view-target="settings">Settings</button>
+      <button class="nav-button active" type="button" data-view-target="search" aria-label="Search inventory">
+        <svg class="nav-icon" aria-hidden="true" viewBox="0 0 24 24">
+          <circle cx="11" cy="11" r="7"></circle>
+          <path d="m16.5 16.5 4 4"></path>
+        </svg>
+        <span>Search</span>
+      </button>
+      <button class="nav-button" type="button" data-view-target="inventory" aria-label="Stock entry">
+        <svg class="nav-icon" aria-hidden="true" viewBox="0 0 24 24">
+          <path d="M12 3 4 7.2v9.6L12 21l8-4.2V7.2L12 3Z"></path>
+          <path d="m4.5 7.5 7.5 4 7.5-4"></path>
+          <path d="M12 11.5V21"></path>
+        </svg>
+        <span>Stock</span>
+      </button>
+      <button class="nav-button" type="button" data-view-target="manage" aria-label="Manage bins and categories">
+        <svg class="nav-icon" aria-hidden="true" viewBox="0 0 24 24">
+          <path d="M4 8h16"></path>
+          <path d="M6 8V5h12v3"></path>
+          <path d="M5 8v11h14V8"></path>
+          <path d="M9 13h6"></path>
+        </svg>
+        <span>Bins</span>
+      </button>
+      <button class="nav-button" type="button" data-view-target="settings" aria-label="Settings">
+        <svg class="nav-icon" aria-hidden="true" viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M12 2.5v3"></path>
+          <path d="M12 18.5v3"></path>
+          <path d="m4.8 4.8 2.1 2.1"></path>
+          <path d="m17.1 17.1 2.1 2.1"></path>
+          <path d="M2.5 12h3"></path>
+          <path d="M18.5 12h3"></path>
+          <path d="m4.8 19.2 2.1-2.1"></path>
+          <path d="m17.1 6.9 2.1-2.1"></path>
+        </svg>
+        <span>Settings</span>
+      </button>
     </nav>
 
     <section class="entry-panel view-section" data-view="inventory" aria-labelledby="entry-title">

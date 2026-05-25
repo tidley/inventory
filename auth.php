@@ -664,7 +664,6 @@ function inventory_render_login_page($assetVersion) {
 <body>
   <main class="auth-shell">
     <section class="auth-panel" aria-labelledby="auth-title">
-      <p class="eyebrow">Stores Lookup</p>
       <h1 id="auth-title">Inventory</h1>
 
       <?php if (!$configured): ?>
