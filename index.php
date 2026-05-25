@@ -2,7 +2,7 @@
 require_once __DIR__ . '/lib.php';
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/version.php';
-$assetVersion = INVENTORY_VERSION . '-2026-05-24-03';
+$assetVersion = INVENTORY_VERSION . '-2026-05-25-01';
 inventory_require_auth_page($assetVersion);
 ?>
 <!doctype html>
@@ -26,7 +26,6 @@ inventory_require_auth_page($assetVersion);
   <main class="app-shell">
     <header class="app-header">
       <div>
-        <p class="eyebrow">Stores Lookup</p>
         <h1>Inventory</h1>
       </div>
       <div class="stats hidden" id="header-status" aria-live="polite">
@@ -36,8 +35,8 @@ inventory_require_auth_page($assetVersion);
 
     <nav class="app-nav" aria-label="Inventory views">
       <button class="nav-button active" type="button" data-view-target="search">Search</button>
-      <button class="nav-button" type="button" data-view-target="inventory">Inventory</button>
-      <button class="nav-button" type="button" data-view-target="manage">Manage</button>
+      <button class="nav-button" type="button" data-view-target="inventory">Stock</button>
+      <button class="nav-button" type="button" data-view-target="manage">Bins</button>
       <button class="nav-button" type="button" data-view-target="settings">Settings</button>
     </nav>
 
